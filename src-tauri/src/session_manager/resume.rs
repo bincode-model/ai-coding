@@ -142,13 +142,20 @@ mod tests {
             "codex",
             "01a08128-e54f-7352-98f2-3ac0816362ae",
             &source,
-            &[root.clone()],
+            std::slice::from_ref(&root),
         )
         .unwrap();
         assert!(prepared.command.contains("CODEX_HOME="));
         assert!(prepared.command.contains(
-            "custom home' codex resume -c tui.terminal_resize_reflow_max_rows=0 --no-alt-screen -- '01a08128-e54f-7352-98f2-3ac0816362ae'"
+            "codex resume -c tui.terminal_resize_reflow_max_rows=0 --no-alt-screen -- '01a08128-e54f-7352-98f2-3ac0816362ae'"
         ));
+        if cfg!(windows) {
+            assert!(prepared.command.starts_with("$env:CODEX_HOME='"));
+            assert!(prepared.command.contains("custom home'; codex resume"));
+        } else {
+            assert!(prepared.command.starts_with("env CODEX_HOME='"));
+            assert!(prepared.command.contains("custom home' codex resume"));
+        }
         assert_eq!(prepared.cwd.as_deref(), root.to_str());
         assert!(!prepared.command.contains("--last"));
         assert!(source.exists());

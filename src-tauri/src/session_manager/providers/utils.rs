@@ -245,7 +245,7 @@ mod tests {
             std::fs::write(&path, format!("first\n{last}{newline}")).unwrap();
             let (head, tail) = read_head_tail_lines(&path, 1, 1).unwrap();
             assert_eq!(head, ["first"]);
-            assert_eq!(tail, [last.clone()]);
+            assert_eq!(tail.as_slice(), std::slice::from_ref(&last));
         }
     }
 
