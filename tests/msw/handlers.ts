@@ -135,6 +135,7 @@ export const handlers = [
   http.post(`${TAURI_ENDPOINT}/list_sessions`, () => success(listSessions())),
   http.post(`${TAURI_ENDPOINT}/get_session_file_stat`, () => success(null)),
   http.post(`${TAURI_ENDPOINT}/search_session_contents`, () => success([])),
+  http.post(`${TAURI_ENDPOINT}/cancel_session_search`, () => success(null)),
 
   http.post(`${TAURI_ENDPOINT}/get_session_messages`, async ({ request }) => {
     const { providerId, sourcePath } = await withJson<{

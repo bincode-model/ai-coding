@@ -5,9 +5,30 @@ const STORAGE_KEY = "ai-coding-session-organizer";
 interface OrganizerState {
   pinned: string[];
   archived: string[];
+  names: Record<string, string>;
 }
 
-const emptyState = (): OrganizerState => ({ pinned: [], archived: [] });
+export const SESSION_NAME_MAX_LENGTH = 120;
+
+const emptyState = (): OrganizerState => ({
+  pinned: [],
+  archived: [],
+  names: {},
+});
+
+const sanitizeNames = (value: unknown): Record<string, string> =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? Object.fromEntries(
+        Object.entries(value)
+          .filter(
+            ([, name]) =>
+              typeof name === "string" &&
+              name.trim().length > 0 &&
+              name.trim().length <= SESSION_NAME_MAX_LENGTH,
+          )
+          .map(([key, name]) => [key, (name as string).trim()]),
+      )
+    : {};
 
 const sanitizeKeys = (value: unknown): string[] =>
   Array.isArray(value)
@@ -22,6 +43,7 @@ const readState = (): OrganizerState => {
     return {
       pinned: sanitizeKeys(parsed.pinned),
       archived: sanitizeKeys(parsed.archived),
+      names: sanitizeNames(parsed.names),
     };
   } catch {
     return emptyState();
@@ -37,7 +59,7 @@ const writeState = (state: OrganizerState) => {
 };
 
 /**
- * 会话置顶 / 归档状态管理。
+ * 会话置顶、归档与本地名称互相独立，不改写原始会话文件。
  * 状态持久化在 localStorage，key 为会话的 getSessionKey 结果。
  */
 export function useSessionOrganizer() {
@@ -82,27 +104,48 @@ export function useSessionOrganizer() {
           : {
               ...current,
               archived: [...current.archived, key],
-              // 归档时同时移除置顶，避免归档列表里残留置顶状态
-              pinned: current.pinned.filter((k) => k !== key),
             },
       );
     },
     [update],
   );
 
-  // 会话被删除后清掉残留的置顶/归档记录
-  const pruneMissing = useCallback(
-    (validKeys: Set<string>) => {
+  const rename = useCallback(
+    (key: string, value: string) => {
+      const name = value.trim();
+      if (name.length > SESSION_NAME_MAX_LENGTH) return false;
       update((current) => {
-        const pinned = current.pinned.filter((key) => validKeys.has(key));
-        const archived = current.archived.filter((key) => validKeys.has(key));
+        const names = { ...current.names };
+        if (name) names[key] = name;
+        else delete names[key];
+        return { ...current, names };
+      });
+      return true;
+    },
+    [update],
+  );
+
+  // 仅明确删除成功才清理；扫描暂缺、切换 Agent 不代表会话已删除。
+  const removeSessions = useCallback(
+    (deletedKeys: Set<string>) => {
+      update((current) => {
+        const pinned = current.pinned.filter((key) => !deletedKeys.has(key));
+        const archived = current.archived.filter(
+          (key) => !deletedKeys.has(key),
+        );
+        const names = Object.fromEntries(
+          Object.entries(current.names).filter(
+            ([key]) => !deletedKeys.has(key),
+          ),
+        );
         if (
           pinned.length === current.pinned.length &&
-          archived.length === current.archived.length
+          archived.length === current.archived.length &&
+          Object.keys(names).length === Object.keys(current.names).length
         ) {
           return current;
         }
-        return { pinned, archived };
+        return { pinned, archived, names };
       });
     },
     [update],
@@ -114,6 +157,8 @@ export function useSessionOrganizer() {
     pinnedOrder,
     togglePin,
     toggleArchive,
-    pruneMissing,
+    names: state.names,
+    rename,
+    removeSessions,
   };
 }

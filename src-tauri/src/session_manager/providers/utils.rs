@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{self, BufRead, BufReader, Seek, SeekFrom};
+use std::io::{self, BufRead, BufReader, Read, Seek, SeekFrom};
 use std::path::Path;
 
 use chrono::{DateTime, FixedOffset};
@@ -9,19 +9,20 @@ use serde_json::Value;
 pub const TITLE_MAX_CHARS: usize = 80;
 
 /// Read the first `head_n` lines and last `tail_n` lines from a file.
-/// For small files (< 16 KB), reads all lines once to avoid unnecessary seeking.
+/// Tail reads begin at a newline boundary, even when a JSON record is larger
+/// than the normal 16 KB read chunk or contains multi-byte UTF-8 characters.
 pub fn read_head_tail_lines(
     path: &Path,
     head_n: usize,
     tail_n: usize,
 ) -> io::Result<(Vec<String>, Vec<String>)> {
-    let file = File::open(path)?;
+    let mut file = File::open(path)?;
     let file_len = file.metadata()?.len();
 
     // For small files, read all lines once and split
     if file_len < 16_384 {
         let reader = BufReader::new(file);
-        let all: Vec<String> = reader.lines().map_while(Result::ok).collect();
+        let all = read_utf8_lines(reader, usize::MAX)?;
         let head = all.iter().take(head_n).cloned().collect();
         let skip = all.len().saturating_sub(tail_n);
         let tail = all.into_iter().skip(skip).collect();
@@ -29,23 +30,60 @@ pub fn read_head_tail_lines(
     }
 
     // Read head lines from the beginning
-    let reader = BufReader::new(file);
-    let head: Vec<String> = reader.lines().take(head_n).map_while(Result::ok).collect();
+    let head = read_utf8_lines(BufReader::new(&mut file), head_n)?;
+    if tail_n == 0 {
+        return Ok((head, Vec::new()));
+    }
 
-    // Seek to last ~16 KB for tail lines
-    let seek_pos = file_len.saturating_sub(16_384);
-    let mut file2 = File::open(path)?;
-    file2.seek(SeekFrom::Start(seek_pos))?;
-    let tail_reader = BufReader::new(file2);
-    let all_tail: Vec<String> = tail_reader.lines().map_while(Result::ok).collect();
-
-    // Skip first partial line if we seeked into the middle of a line
-    let skip_first = if seek_pos > 0 { 1 } else { 0 };
-    let usable: Vec<String> = all_tail.into_iter().skip(skip_first).collect();
-    let skip = usable.len().saturating_sub(tail_n);
-    let tail = usable.into_iter().skip(skip).collect();
+    let mut cursor = file_len;
+    let mut newline_count = 0;
+    let mut wanted_newlines = tail_n;
+    let mut start = 0;
+    let mut chunk = vec![0; 16_384];
+    'chunks: while cursor > 0 {
+        let count = cursor.min(chunk.len() as u64) as usize;
+        cursor -= count as u64;
+        file.seek(SeekFrom::Start(cursor))?;
+        file.read_exact(&mut chunk[..count])?;
+        if cursor + count as u64 == file_len && chunk[count - 1] == b'\n' {
+            wanted_newlines = wanted_newlines.saturating_add(1);
+        }
+        for index in (0..count).rev() {
+            if chunk[index] == b'\n' {
+                newline_count += 1;
+                if newline_count == wanted_newlines {
+                    start = cursor + index as u64 + 1;
+                    break 'chunks;
+                }
+            }
+        }
+    }
+    file.seek(SeekFrom::Start(start))?;
+    let tail = read_utf8_lines(BufReader::new(file.take(file_len - start)), tail_n)?;
 
     Ok((head, tail))
+}
+
+fn read_utf8_lines(mut reader: impl BufRead, limit: usize) -> io::Result<Vec<String>> {
+    let mut lines = Vec::new();
+    let mut bytes = Vec::new();
+    for _ in 0..limit {
+        bytes.clear();
+        if reader.read_until(b'\n', &mut bytes)? == 0 {
+            break;
+        }
+        if bytes.last() == Some(&b'\n') {
+            bytes.pop();
+            if bytes.last() == Some(&b'\r') {
+                bytes.pop();
+            }
+        }
+        // A damaged record must not hide all later valid records.
+        if let Ok(line) = std::str::from_utf8(&bytes) {
+            lines.push(line.to_string());
+        }
+    }
+    Ok(lines)
 }
 
 pub fn parse_timestamp_to_ms(value: &Value) -> Option<i64> {
@@ -181,5 +219,43 @@ mod tests {
             extract_text(&json!([{ "type": "toolCall", "name": "read" }])),
             "[Tool: read]"
         );
+    }
+
+    #[test]
+    fn tail_keeps_complete_utf8_records_after_a_multibyte_seek_boundary() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("unicode.jsonl");
+        let long_line = format!("{{\"text\":\"{}\"}}", "中".repeat(12_000));
+        let text = format!("head\n{long_line}\nlatest!\n");
+        let old_cut = text.len() - 16_384;
+        assert!(!text.is_char_boundary(old_cut));
+        std::fs::write(&path, text).unwrap();
+
+        let (head, tail) = read_head_tail_lines(&path, 1, 2).unwrap();
+        assert_eq!(head, ["head"]);
+        assert_eq!(tail, [long_line, "latest!".to_string()]);
+    }
+
+    #[test]
+    fn tail_reads_a_last_record_larger_than_the_read_chunk() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("large.jsonl");
+        let last = format!("{{\"output\":\"{}\"}}", "complete output ".repeat(10_000));
+        for newline in ["", "\n", "\r\n"] {
+            std::fs::write(&path, format!("first\n{last}{newline}")).unwrap();
+            let (head, tail) = read_head_tail_lines(&path, 1, 1).unwrap();
+            assert_eq!(head, ["first"]);
+            assert_eq!(tail, [last.clone()]);
+        }
+    }
+
+    #[test]
+    fn damaged_utf8_line_does_not_hide_later_valid_lines() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("damaged.jsonl");
+        std::fs::write(&path, b"first\n\xff\nlatest\n").unwrap();
+        let (head, tail) = read_head_tail_lines(&path, 3, 3).unwrap();
+        assert_eq!(head, ["first", "latest"]);
+        assert_eq!(tail, ["first", "latest"]);
     }
 }

@@ -8,7 +8,7 @@ import type { SessionChangedPayload, SessionFileStat } from "@/types";
 export const SESSION_CHANGED_EVENT = "session-manager://changed";
 
 /** 前端合并事件的节流窗口（毫秒）。 */
-const EVENT_THROTTLE_MS = 500;
+const EVENT_THROTTLE_MS = 3000;
 /** 兜底轮询：对当前打开的会话文件做一次轻量 stat 的间隔（毫秒）。 */
 const STAT_POLL_MS = 3000;
 
@@ -21,7 +21,7 @@ interface UseSessionLiveSyncOptions {
  * 让「会话管理」页跟着终端里的对话实时更新。
  *
  * 两条通道互不依赖、可单独失效：
- * 1. 事件通道：后端 `session-manager://changed`（400ms 防抖）→ 前端 500ms
+ * 1. 事件通道：后端 `session-manager://changed`（400ms 防抖）→ 前端 3 秒
  *    节流后 invalidate 会话列表；若变化的文件正是当前打开的会话，则同时
  *    invalidate 该会话的消息查询。
  * 2. 兜底通道：每 3 秒对当前会话文件做一次 mtime / size 的 stat（几十字节
@@ -38,6 +38,9 @@ export function useSessionLiveSync({
   const queryClient = useQueryClient();
   const throttleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingCurrentRef = useRef(false);
+  const previousStatRef = useRef<{ key: string; stat: SessionFileStat } | null>(
+    null,
+  );
   const currentRef = useRef<{ providerId?: string; sourcePath?: string }>({});
   currentRef.current = { providerId, sourcePath };
 
@@ -100,13 +103,20 @@ export function useSessionLiveSync({
 
   useEffect(() => {
     if (!stat || !providerId || !sourcePath) return;
+    const key = `${providerId}:${sourcePath}`;
+    const previous = previousStatRef.current;
+    previousStatRef.current = { key, stat };
     const state = queryClient.getQueryState([
       "sessionMessages",
       providerId,
       sourcePath,
     ]);
     const lastFetched = state?.dataUpdatedAt ?? 0;
-    if (stat.mtimeMs > lastFetched) {
+    const changed =
+      previous?.key === key &&
+      (previous.stat.mtimeMs !== stat.mtimeMs ||
+        previous.stat.size !== stat.size);
+    if (changed || stat.mtimeMs > lastFetched) {
       void queryClient.invalidateQueries({
         queryKey: ["sessionMessages", providerId, sourcePath],
       });

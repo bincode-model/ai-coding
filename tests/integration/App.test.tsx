@@ -14,6 +14,7 @@ import {
 import { DEFAULT_VISIBLE_APPS } from "@/config/appConfig";
 import { emitTauriEvent } from "../msw/tauriMocks";
 import { server } from "../msw/server";
+import { ThemeProvider } from "@/components/theme-provider";
 
 const toastSuccessMock = vi.fn();
 const toastErrorMock = vi.fn();
@@ -192,15 +193,25 @@ const renderApp = (AppComponent: ComponentType) => {
   const client = new QueryClient();
   return render(
     <QueryClientProvider client={client}>
-      <Suspense fallback={<div data-testid="loading">loading</div>}>
-        <AppComponent />
-      </Suspense>
+      <ThemeProvider>
+        <Suspense fallback={<div data-testid="loading">loading</div>}>
+          <AppComponent />
+        </Suspense>
+      </ThemeProvider>
     </QueryClientProvider>,
   );
 };
 
 describe("App integration with MSW", () => {
   beforeEach(() => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
     resetProviderState();
     toastSuccessMock.mockReset();
     toastErrorMock.mockReset();
@@ -209,6 +220,55 @@ describe("App integration with MSW", () => {
     localStorage.removeItem("ai-coding-last-view");
     localStorage.removeItem("ai-coding-last-app");
   });
+
+  it("opens tool versions from the toolbar and checks every runtime once", async () => {
+    setSettings({ firstRunNoticeConfirmed: true });
+    const checked: string[] = [];
+    server.use(
+      http.post("http://tauri.local/get_tool_versions", async ({ request }) => {
+        const body = (await request.json()) as { tools: string[] };
+        checked.push(...body.tools);
+        return HttpResponse.json(
+          body.tools.map((name) => ({
+            name,
+            version: "1.0.0",
+            latest_version: "1.1.0",
+            error: null,
+            installed_but_broken: false,
+            env_type: "macos",
+            wsl_distro: null,
+          })),
+        );
+      }),
+    );
+    const { default: App } = await import("@/App");
+    renderApp(App);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "检查工具版本" }),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("table", { name: "工具版本" })).toBeVisible(),
+    );
+    await waitFor(() => expect(checked).toHaveLength(9));
+    expect(new Set(checked)).toEqual(
+      new Set([
+        "claude",
+        "codex",
+        "gemini",
+        "grok",
+        "opencode",
+        "openclaw",
+        "hermes",
+        "pi",
+        "claude-desktop",
+      ]),
+    );
+    expect(screen.getByRole("row", { name: "Claude Desktop" })).toBeVisible();
+    expect(
+      screen.getByRole("row", { name: "BinCode · 复用 OpenCode 通道" }),
+    ).toBeVisible();
+    expect(await screen.findByText("已检查 9 / 9")).toBeVisible();
+  }, 15_000);
 
   it("covers basic provider flows via real hooks", async () => {
     const { default: App } = await import("@/App");

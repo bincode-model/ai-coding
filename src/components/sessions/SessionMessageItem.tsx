@@ -34,7 +34,7 @@ export const SessionMessageItem = memo(function SessionMessageItem({
   onCopy,
 }: SessionMessageItemProps) {
   const { t } = useTranslation();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
 
   const isLong = message.content.length > COLLAPSE_THRESHOLD;
   const hasSearchMatch =

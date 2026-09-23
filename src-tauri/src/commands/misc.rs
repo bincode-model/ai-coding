@@ -96,7 +96,7 @@ pub async fn get_skills_migration_result() -> Result<Option<SkillsMigrationPaylo
     Ok(crate::init_status::take_skills_migration_result())
 }
 
-#[derive(serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct ToolVersion {
     name: String,
     version: Option<String>,
@@ -109,11 +109,33 @@ pub struct ToolVersion {
     env_type: String,
     /// 当 env_type 为 "wsl" 时，返回该工具绑定的 WSL distro（用于按 distro 探测 shells）
     wsl_distro: Option<String>,
+    local_error: Option<String>,
+    latest_error: Option<String>,
+    status: String,
+    checked_at: i64,
+    source_url: Option<String>,
+    latest_source: Option<String>,
+    local_source: Option<String>,
+    canonical_tool: Option<String>,
 }
 
 const VALID_TOOLS: [&str; 8] = [
     "claude", "codex", "gemini", "grok", "opencode", "openclaw", "hermes", "pi",
 ];
+// Detection capabilities are deliberately separate from install/update targets.
+const CHECKABLE_TOOLS: [&str; 9] = [
+    "claude",
+    "codex",
+    "gemini",
+    "grok",
+    "opencode",
+    "openclaw",
+    "hermes",
+    "pi",
+    "claude-desktop",
+];
+static TOOL_CHECK_LIMIT: Lazy<std::sync::Arc<tokio::sync::Semaphore>> =
+    Lazy::new(|| std::sync::Arc::new(tokio::sync::Semaphore::new(3)));
 
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -156,25 +178,38 @@ pub async fn get_tool_versions(
 ) -> Result<Vec<ToolVersion>, String> {
     let requested: Vec<&str> = if let Some(tools) = tools.as_ref() {
         let set: std::collections::HashSet<&str> = tools.iter().map(|s| s.as_str()).collect();
-        VALID_TOOLS
+        CHECKABLE_TOOLS
             .iter()
             .copied()
             .filter(|t| set.contains(t))
             .collect()
     } else {
-        VALID_TOOLS.to_vec()
+        CHECKABLE_TOOLS.to_vec()
     };
-    let mut results = Vec::new();
-
-    for tool in requested {
-        let pref = wsl_shell_by_tool.as_ref().and_then(|m| m.get(tool));
-        let tool_wsl_shell = pref.and_then(|p| p.wsl_shell.as_deref());
-        let tool_wsl_shell_flag = pref.and_then(|p| p.wsl_shell_flag.as_deref());
-
-        results.push(get_single_tool_version_impl(tool, tool_wsl_shell, tool_wsl_shell_flag).await);
+    let mut tasks = tokio::task::JoinSet::new();
+    let mut results = vec![None; requested.len()];
+    for (index, tool) in requested.into_iter().enumerate() {
+        let tool = tool.to_string();
+        let pref = wsl_shell_by_tool
+            .as_ref()
+            .and_then(|m| m.get(&tool))
+            .cloned();
+        tasks.spawn(async move {
+            let result = get_single_tool_version_impl(
+                &tool,
+                pref.as_ref().and_then(|p| p.wsl_shell.as_deref()),
+                pref.as_ref().and_then(|p| p.wsl_shell_flag.as_deref()),
+            )
+            .await;
+            (index, result)
+        });
     }
-
-    Ok(results)
+    while let Some(result) = tasks.join_next().await {
+        let (index, version) =
+            result.map_err(|error| format!("Tool check task failed: {error}"))?;
+        results[index] = Some(version);
+    }
+    Ok(results.into_iter().flatten().collect())
 }
 
 #[tauri::command]
@@ -745,98 +780,363 @@ fn windows_cmd_double_quote_arg(value: &str) -> String {
     win_double_quote(value)
 }
 
-/// 获取单个工具的版本信息（内部实现）
+/// Local process work runs on the blocking pool; this semaphore also bounds
+/// concurrent calls from independent settings rows and repeated UI requests.
 async fn get_single_tool_version_impl(
     tool: &str,
     wsl_shell: Option<&str>,
     wsl_shell_flag: Option<&str>,
 ) -> ToolVersion {
-    debug_assert!(
-        VALID_TOOLS.contains(&tool),
-        "unexpected tool name in get_single_tool_version_impl: {tool}"
-    );
-
-    // 判断该工具的运行环境 & WSL distro（如有）
-    let (env_type, wsl_distro) = tool_env_type_and_wsl_distro(tool);
-
-    // 使用全局 HTTP 客户端（已包含代理配置）
+    debug_assert!(CHECKABLE_TOOLS.contains(&tool));
+    let permit = std::sync::Arc::clone(&TOOL_CHECK_LIMIT)
+        .acquire_owned()
+        .await
+        .expect("tool check semaphore is never closed");
+    let owned_tool = tool.to_string();
+    let shell = wsl_shell.map(str::to_string);
+    let flag = wsl_shell_flag.map(str::to_string);
+    let local = tokio::task::spawn_blocking(move || {
+        // The permit follows the blocking work if its async waiter is dropped.
+        let result = probe_tool_locally(&owned_tool, shell.as_deref(), flag.as_deref());
+        (result, permit)
+    })
+    .await;
+    let ((probe, blocked, local_source, env_type, wsl_distro), _permit) = match local {
+        Ok(result) => result,
+        Err(error) => return failed_tool_check(tool, format!("Local detection failed: {error}")),
+    };
+    let (local_version, mut local_error, installed_but_broken) = match probe {
+        ShellProbe::Found(version) if parse_semver(&version).is_some() => {
+            (Some(version), None, false)
+        }
+        ShellProbe::Found(_) => (
+            None,
+            Some("Local command returned an invalid version".to_string()),
+            true,
+        ),
+        ShellProbe::FoundButFailed(error) => {
+            (None, Some(error), !blocked && tool != "claude-desktop")
+        }
+        ShellProbe::NotFound(error) => (None, Some(error), false),
+    };
+    if blocked && local_error.is_none() {
+        local_error = Some("CLI execution is protected; version is read from installation metadata, not a runnable PATH verification".into());
+    }
     let client = crate::proxy::http_client::get();
-
-    // 1. 获取本地版本
-    let probe = if let Some(distro) = wsl_distro.as_deref() {
-        try_get_version_wsl(tool, distro, wsl_shell, wsl_shell_flag)
-    } else {
-        #[cfg(target_os = "windows")]
-        {
-            // Probe the PATH-default entry (what `tool` resolves to in a
-            // terminal) first, and only fall back to the directory scan when it
-            // is genuinely absent (NotFound). Two goals:
-            // 1. Keep the displayed "current version" aligned with the version
-            //    the user actually runs — a stale shim in a hardcoded fallback
-            //    dir (e.g. an old `%APPDATA%\npm`) must not override a newer
-            //    PATH install (#4701: "updated but still shows the old version").
-            // 2. Mirror the non-Windows structure (`try_get_version` →
-            //    `scan_cli_version`).
-            // `probe_path_default_version` executes only the real executable
-            //    resolved by `where` (App Execution Aliases filtered out), so
-            //    it never `cmd /C tool` into a protocol handler.
-            match probe_path_default_version(tool) {
-                ShellProbe::NotFound(_) => scan_cli_version(tool),
-                found => found,
-            }
-        }
-
-        #[cfg(not(target_os = "windows"))]
-        {
-            // PATH 第一个命令优先；只有它确实没装(NotFound)才去常见目录兜底扫描。
-            match try_get_version(tool) {
-                ShellProbe::NotFound(_) => scan_cli_version(tool),
-                found => found,
-            }
-        }
+    let (source_url, latest_source) = latest_source_for_tool(tool);
+    let remote = fetch_tool_latest(&client, tool, local_version.as_deref()).await;
+    let (latest_version, latest_error, source_url, latest_source) = match remote {
+        Ok(latest) => (
+            Some(latest.version),
+            None,
+            Some(latest.url),
+            Some(latest.source),
+        ),
+        Err(error) => (None, Some(error), source_url, latest_source),
     };
-    let (local_version, local_error, installed_but_broken) = match probe {
-        ShellProbe::Found(v) => (Some(v), None, false),
-        ShellProbe::FoundButFailed(e) => (None, Some(e), true),
-        ShellProbe::NotFound(e) => (None, Some(e), false),
-    };
-
-    // 2. 获取远程最新版本（npm 工具在本地领先 latest 时会按预发布通道补查，见
-    //    fetch_npm_latest_for_tool / npm_prerelease_tags）
-    let local = local_version.as_deref();
-    let latest_version = match tool {
-        "claude" => {
-            fetch_npm_latest_for_tool(&client, "@anthropic-ai/claude-code", tool, local).await
-        }
-        "codex" => fetch_npm_latest_for_tool(&client, "@openai/codex", tool, local).await,
-        "gemini" => fetch_npm_latest_for_tool(&client, "@google/gemini-cli", tool, local).await,
-        "grok" => fetch_npm_latest_for_tool(&client, "@xai-official/grok", tool, local).await,
-        "opencode" => {
-            if let Some(version) =
-                fetch_npm_latest_for_tool(&client, "opencode-ai", tool, local).await
-            {
-                Some(version)
-            } else {
-                fetch_github_latest_version(&client, "anomalyco/opencode").await
-            }
-        }
-        "openclaw" => fetch_npm_latest_for_tool(&client, "openclaw", tool, local).await,
-        "hermes" => fetch_hermes_latest_version(&client, local).await,
-        "pi" => {
-            fetch_npm_latest_for_tool(&client, "@earendil-works/pi-coding-agent", tool, local).await
-        }
-        _ => None,
-    };
-
+    let status = tool_check_status(
+        local_version.as_deref(),
+        latest_version.as_deref(),
+        local_error.as_deref(),
+        latest_error.as_deref(),
+        installed_but_broken,
+        blocked,
+        tool == "claude-desktop" && !cfg!(any(target_os = "macos", target_os = "windows")),
+    );
     ToolVersion {
         name: tool.to_string(),
         version: local_version,
         latest_version,
-        error: local_error,
+        error: local_error.clone(),
+        local_error,
+        latest_error,
         installed_but_broken,
         env_type,
         wsl_distro,
+        status: status.into(),
+        checked_at: chrono::Utc::now().timestamp_millis(),
+        source_url,
+        latest_source,
+        local_source: Some(local_source),
+        canonical_tool: None,
     }
+}
+
+fn failed_tool_check(tool: &str, error: String) -> ToolVersion {
+    ToolVersion {
+        name: tool.into(),
+        version: None,
+        latest_version: None,
+        error: Some(error.clone()),
+        local_error: Some(error),
+        latest_error: Some("Latest lookup was not completed".into()),
+        installed_but_broken: false,
+        env_type: std::env::consts::OS.into(),
+        wsl_distro: None,
+        status: "error".into(),
+        checked_at: chrono::Utc::now().timestamp_millis(),
+        source_url: None,
+        latest_source: None,
+        local_source: None,
+        canonical_tool: None,
+    }
+}
+
+fn tool_check_status(
+    local: Option<&str>,
+    latest: Option<&str>,
+    local_error: Option<&str>,
+    latest_error: Option<&str>,
+    broken: bool,
+    blocked: bool,
+    unsupported: bool,
+) -> &'static str {
+    if unsupported {
+        return "unsupported";
+    }
+    if blocked {
+        return "blocked";
+    }
+    if broken {
+        return "error";
+    }
+    if local.is_none() && local_error.is_some_and(|error| error.contains(NOT_INSTALLED)) {
+        return "not_installed";
+    }
+    if local_error.is_some() || latest_error.is_some() {
+        return "error";
+    }
+    match local
+        .zip(latest)
+        .and_then(|(local, latest)| compare_semver(local, latest))
+    {
+        Some(std::cmp::Ordering::Less) => "update_available",
+        Some(std::cmp::Ordering::Equal) => "up_to_date",
+        Some(std::cmp::Ordering::Greater) => "ahead",
+        None => "error",
+    }
+}
+
+type LocalToolCheck = (ShellProbe, bool, String, String, Option<String>);
+
+fn probe_tool_locally(tool: &str, shell: Option<&str>, flag: Option<&str>) -> LocalToolCheck {
+    let (env_type, distro) = tool_env_type_and_wsl_distro(tool);
+    if tool == "claude" {
+        let (probe, blocked, source) = if distro.is_some() {
+            (
+                ShellProbe::FoundButFailed(
+                    "Claude CLI execution is protected; WSL installation metadata is not available"
+                        .into(),
+                ),
+                true,
+                "protected_metadata_check".into(),
+            )
+        } else {
+            probe_claude_installation_metadata()
+        };
+        return (probe, blocked, source, env_type, distro);
+    }
+    if tool == "claude-desktop" {
+        return (
+            probe_claude_desktop(),
+            false,
+            "app_bundle_metadata".into(),
+            env_type,
+            None,
+        );
+    }
+    let probe = if let Some(distro) = distro.as_deref() {
+        try_get_version_wsl(tool, distro, shell, flag)
+    } else {
+        #[cfg(target_os = "windows")]
+        {
+            match probe_path_default_version(tool) {
+                ShellProbe::NotFound(_) => scan_cli_version(tool),
+                result => result,
+            }
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            match try_get_version(tool) {
+                ShellProbe::NotFound(_) => scan_cli_version(tool),
+                result => result,
+            }
+        }
+    };
+    (probe, false, "bounded_cli_version".into(), env_type, distro)
+}
+
+fn metadata_version_for_claude(path: &Path, home: &Path) -> Option<String> {
+    let real = std::fs::canonicalize(path).ok()?;
+    let native_versions = std::fs::canonicalize(home.join(".local/share/claude/versions")).ok();
+    if real.parent() == native_versions.as_deref() {
+        let version = real.file_name()?.to_str()?;
+        if parse_semver(version).is_some() {
+            return Some(version.to_string());
+        }
+    }
+    for parent in real.ancestors().skip(1).take(4) {
+        if parent.file_name().and_then(|name| name.to_str()) != Some("claude-code") {
+            continue;
+        }
+        let manifest = parent.join("package.json");
+        if manifest
+            .metadata()
+            .ok()
+            .is_none_or(|meta| meta.len() > 128 * 1024)
+        {
+            continue;
+        }
+        let value: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&manifest).ok()?).ok()?;
+        if value.get("name").and_then(|value| value.as_str()) == Some("@anthropic-ai/claude-code") {
+            let version = value.get("version")?.as_str()?;
+            if parse_semver(version).is_some() {
+                return Some(version.to_string());
+            }
+        }
+    }
+    None
+}
+
+fn probe_claude_installation_metadata() -> (ShellProbe, bool, String) {
+    let home = crate::config::get_home_dir();
+    let default = resolve_path_default(
+        "claude",
+        CommandDeadline::from_timeout(Some(INSTALL_PROBE_TIMEOUT)),
+    );
+    if let Ok(Some(path)) = &default {
+        if let Some(version) = metadata_version_for_claude(path, &home) {
+            return (
+                ShellProbe::Found(version),
+                false,
+                "path_installation_metadata_not_executed".into(),
+            );
+        }
+    }
+    // Read the standard native installation symlink only. Never execute this
+    // alternate entry point to bypass a protected PATH wrapper such as GG.
+    if let Some(version) = metadata_version_for_claude(&home.join(".local/bin/claude"), &home) {
+        return (
+            ShellProbe::Found(version),
+            true,
+            "alternate_native_installation_metadata_not_executed".into(),
+        );
+    }
+    (ShellProbe::FoundButFailed("Claude CLI execution is protected; no verifiable installation version metadata was found".into()), true, "protected_metadata_check".into())
+}
+
+#[cfg(target_os = "macos")]
+fn probe_claude_desktop() -> ShellProbe {
+    let home = crate::config::get_home_dir();
+    let candidates = [
+        PathBuf::from("/Applications/Claude.app/Contents/Info.plist"),
+        home.join("Applications/Claude.app/Contents/Info.plist"),
+    ];
+    for path in candidates {
+        if !path.is_file() {
+            continue;
+        }
+        let read = |key: &str| -> Result<String, String> {
+            let mut command = std::process::Command::new("/usr/bin/plutil");
+            command.args(["-extract", key, "raw", "-o", "-"]).arg(&path);
+            let output = bounded_probe_output(
+                &mut command,
+                CommandDeadline::from_timeout(Some(INSTALL_PROBE_TIMEOUT)),
+            )?;
+            if !output.status.success() {
+                return Err("Unable to read Claude Desktop bundle metadata".into());
+            }
+            Ok(decode_command_output(&output.stdout).trim().to_string())
+        };
+        match read("CFBundleIdentifier").and_then(|id| {
+            if id != "com.anthropic.claudefordesktop" {
+                return Err("Unexpected Claude Desktop bundle identifier".into());
+            }
+            read("CFBundleShortVersionString")
+        }) {
+            Ok(version) if parse_semver(&version).is_some() => return ShellProbe::Found(version),
+            Ok(_) => {
+                return ShellProbe::FoundButFailed("Invalid Claude Desktop bundle version".into())
+            }
+            Err(error) => return ShellProbe::FoundButFailed(error),
+        }
+    }
+    ShellProbe::NotFound(NOT_INSTALLED.into())
+}
+
+#[cfg(target_os = "windows")]
+fn probe_claude_desktop() -> ShellProbe {
+    let executable =
+        PathBuf::from(std::env::var_os("SystemRoot").unwrap_or_else(|| r"C:\Windows".into()))
+            .join(r"System32\WindowsPowerShell\v1.0\powershell.exe");
+    let mut command = std::process::Command::new(executable);
+    command.args(["-NoLogo", "-NoProfile", "-NonInteractive", "-Command",
+        "$ErrorActionPreference='Stop'; ConvertTo-Json -Compress -InputObject @(Get-AppxPackage -Name Claude | Select-Object Name,Publisher,@{Name='Version';Expression={$_.Version.ToString()}})"]);
+    match bounded_probe_output(
+        &mut command,
+        CommandDeadline::from_timeout(Some(INSTALL_PROBE_TIMEOUT)),
+    ) {
+        Ok(output) if output.status.success() => {
+            let parsed = serde_json::from_slice::<serde_json::Value>(&output.stdout)
+                .map_err(|_| "Invalid installed app package metadata".to_string())
+                .and_then(|json| desktop_appx_version(&json));
+            match parsed {
+                Ok(Some(version)) => ShellProbe::Found(version),
+                Ok(None) => ShellProbe::NotFound(NOT_INSTALLED.into()),
+                Err(error) => ShellProbe::FoundButFailed(error),
+            }
+        }
+        Ok(_) => ShellProbe::FoundButFailed(
+            "Failed to read installed Claude Desktop package metadata".into(),
+        ),
+        Err(error) => ShellProbe::FoundButFailed(error),
+    }
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn desktop_appx_version(json: &serde_json::Value) -> Result<Option<String>, String> {
+    let packages = json
+        .as_array()
+        .ok_or_else(|| "Invalid installed app package list".to_string())?;
+    let mut latest = None;
+    for package in packages {
+        if package.get("Name").and_then(|value| value.as_str()) != Some("Claude") {
+            continue;
+        }
+        if !package
+            .get("Publisher")
+            .and_then(|value| value.as_str())
+            .is_some_and(|value| value.to_ascii_lowercase().contains("anthropic"))
+        {
+            return Err("Unrecognized Claude Desktop publisher".into());
+        }
+        let raw = package
+            .get("Version")
+            .and_then(|value| value.as_str())
+            .ok_or_else(|| "Missing Desktop package version".to_string())?;
+        let version = if raw.split('.').count() == 4 {
+            raw.strip_suffix(".0").ok_or_else(|| {
+                "Desktop package revision cannot be compared with the release version".to_string()
+            })?
+        } else {
+            raw
+        };
+        let version = validated_latest(Some(version))?;
+        if latest.as_ref().is_none_or(|current: &String| {
+            compare_semver(&version, current) == Some(std::cmp::Ordering::Greater)
+        }) {
+            latest = Some(version);
+        }
+    }
+    Ok(latest)
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn probe_claude_desktop() -> ShellProbe {
+    ShellProbe::FoundButFailed(
+        "Claude Desktop metadata detection is not supported on this platform".into(),
+    )
 }
 
 /// 该工具在 npm 上的预发布通道 tag(靠前者优先)。仅当本地版本已**严格领先**
@@ -860,12 +1160,43 @@ fn npm_prerelease_tags(tool: &str) -> &'static [&'static str] {
 /// 与前端 `src/lib/version.ts` 的 parseVersion 语义对称(跨语言各实现一份)。
 /// patch 用 u64 以容纳 codex 的 `0.1.2505172116` 时间戳式版本而不溢出。
 fn parse_semver(v: &str) -> Option<([u64; 3], Vec<String>)> {
+    let v = v.trim();
+    let valid_identifiers = |value: &str| {
+        !value.is_empty()
+            && value.split('.').all(|part| {
+                !part.is_empty()
+                    && part
+                        .chars()
+                        .all(|ch| ch.is_ascii_alphanumeric() || ch == '-')
+            })
+    };
+    if let Some((_, build)) = v.split_once('+') {
+        if !valid_identifiers(build) {
+            return None;
+        }
+    }
     // 忽略 `+build` 元数据,再以首个 `-` 切出预发布段。
     let core_and_pre = v.trim().split('+').next().unwrap_or("");
     let (core, pre) = match core_and_pre.split_once('-') {
         Some((c, p)) => (c, Some(p)),
         None => (core_and_pre, None),
     };
+    if core.split('.').any(|part| {
+        part.is_empty()
+            || !part.bytes().all(|ch| ch.is_ascii_digit())
+            || (part.len() > 1 && part.starts_with('0'))
+    }) {
+        return None;
+    }
+    if pre.is_some_and(|value| {
+        !valid_identifiers(value)
+            || value.split('.').any(|part| {
+                part.bytes().all(|ch| ch.is_ascii_digit())
+                    && (part.len() > 1 && part.starts_with('0') || part.parse::<u64>().is_err())
+            })
+    }) {
+        return None;
+    }
     let mut parts = core.split('.');
     let major = parts.next()?.parse::<u64>().ok()?;
     let minor = parts.next()?.parse::<u64>().ok()?;
@@ -924,6 +1255,7 @@ fn pick_latest_version(
 ) -> Option<String> {
     use std::cmp::Ordering;
     let latest = dist_tags.get("latest").and_then(|v| v.as_str())?;
+    parse_semver(latest)?;
 
     // 本地是否严格领先 latest;任一无法解析则按"未领先"保守处理(只看 latest)。
     let local_ahead = local_version
@@ -945,47 +1277,191 @@ fn pick_latest_version(
     Some(best)
 }
 
-/// 拉取 npm 包的完整 dist-tags(单次请求即含 latest/next/beta/...)。
-async fn fetch_npm_dist_tags(
-    client: &reqwest::Client,
-    package: &str,
-) -> Option<serde_json::Map<String, serde_json::Value>> {
-    let url = format!("https://registry.npmjs.org/{package}");
-    let resp = client.get(&url).send().await.ok()?;
-    let json = resp.json::<serde_json::Value>().await.ok()?;
-    json.get("dist-tags")?.as_object().cloned()
-}
-
-/// 查询某 npm 工具要展示的"最新版本":取 `latest`,并在本地版本领先时按工具的
-/// 预发布通道(见 `npm_prerelease_tags`)补查 —— 复用同一次 registry 响应,无额外请求。
-async fn fetch_npm_latest_for_tool(
-    client: &reqwest::Client,
-    package: &str,
-    tool: &str,
-    local_version: Option<&str>,
-) -> Option<String> {
-    let dist_tags = fetch_npm_dist_tags(client, package).await?;
-    pick_latest_version(&dist_tags, npm_prerelease_tags(tool), local_version)
-}
-
 const LATEST_PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
+const MAX_LATEST_BODY_BYTES: usize = 1024 * 1024;
 
-/// Helper function to fetch latest version from GitHub releases
-async fn fetch_github_latest_version(client: &reqwest::Client, repo: &str) -> Option<String> {
-    let url = format!("https://api.github.com/repos/{repo}/releases/latest");
-    let response = client
-        .get(&url)
-        .header("User-Agent", "ai-coding")
-        .header("Accept", "application/vnd.github+json")
+#[derive(Debug)]
+struct LatestToolVersion {
+    version: String,
+    url: String,
+    source: String,
+}
+
+fn latest_source_for_tool(tool: &str) -> (Option<String>, Option<String>) {
+    if tool == "claude-desktop" {
+        #[cfg(target_os = "macos")]
+        let url =
+            Some("https://downloads.claude.ai/releases/darwin/universal/RELEASES.json".into());
+        #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
+        let url = Some("https://downloads.claude.ai/releases/win32/arm64/RELEASES".into());
+        #[cfg(all(target_os = "windows", not(target_arch = "aarch64")))]
+        let url = Some("https://downloads.claude.ai/releases/win32/x64/RELEASES".into());
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        let url = None;
+        return (url, Some("official_desktop_releases".into()));
+    }
+    if tool == "hermes" {
+        return (
+            Some("https://api.github.com/repos/NousResearch/hermes-agent/releases/latest".into()),
+            Some("github".into()),
+        );
+    }
+    let package = match tool {
+        "claude" => "@anthropic-ai/claude-code",
+        "codex" => "@openai/codex",
+        "gemini" => "@google/gemini-cli",
+        "grok" => "@xai-official/grok",
+        "opencode" => "opencode-ai",
+        "openclaw" => "openclaw",
+        "pi" => "@earendil-works/pi-coding-agent",
+        _ => return (None, None),
+    };
+    (
+        Some(format!(
+            "https://registry.npmjs.org/-/package/{}/dist-tags",
+            package.replace('/', "%2F")
+        )),
+        Some("npm".into()),
+    )
+}
+
+async fn fetch_latest_body(client: &reqwest::Client, url: &str) -> Result<Vec<u8>, String> {
+    let mut response = client
+        .get(url)
+        .header("User-Agent", "AI-Coding-Version-Check")
         .timeout(LATEST_PROBE_TIMEOUT)
         .send()
         .await
-        .ok()?;
-    let json = response.json::<serde_json::Value>().await.ok()?;
-    github_release_version_from_json(&json)
+        .map_err(|error| format!("Latest version request failed: {error}"))?
+        .error_for_status()
+        .map_err(|error| format!("Latest version HTTP error: {error}"))?;
+    let mut body = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|error| format!("Latest version body failed: {error}"))?
+    {
+        if body.len().saturating_add(chunk.len()) > MAX_LATEST_BODY_BYTES {
+            return Err("Latest version response exceeds size limit".into());
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(body)
+}
+
+async fn fetch_latest_json(
+    client: &reqwest::Client,
+    url: &str,
+) -> Result<serde_json::Value, String> {
+    serde_json::from_slice(&fetch_latest_body(client, url).await?)
+        .map_err(|_| "Latest version response is not valid JSON".into())
+}
+
+fn validated_latest(version: Option<&str>) -> Result<String, String> {
+    version
+        .filter(|version| parse_semver(version).is_some())
+        .map(str::to_string)
+        .ok_or_else(|| "Latest version response contains no valid semantic version".into())
+}
+
+async fn fetch_tool_latest(
+    client: &reqwest::Client,
+    tool: &str,
+    local: Option<&str>,
+) -> Result<LatestToolVersion, String> {
+    let (url, source) = latest_source_for_tool(tool);
+    let url =
+        url.ok_or_else(|| "Latest version lookup is unsupported on this platform".to_string())?;
+    let source = source.unwrap_or_default();
+    let result = if tool == "claude-desktop" {
+        if cfg!(target_os = "windows") {
+            let bytes = fetch_latest_body(client, &url).await?;
+            parse_desktop_windows_releases(
+                std::str::from_utf8(&bytes).map_err(|_| "Invalid Desktop release feed encoding")?,
+            )
+        } else {
+            let json = fetch_latest_json(client, &url).await?;
+            validated_latest(json.get("currentRelease").and_then(|value| value.as_str()))
+        }
+    } else if tool == "hermes" {
+        let primary = fetch_latest_json(client, &url).await.and_then(|json| {
+            github_release_version_from_json(&json)
+                .ok_or_else(|| "GitHub release contains no valid version".to_string())
+        });
+        match primary {
+            Ok(version) => Ok(version),
+            Err(primary_error) => {
+                let fallback = "https://pypi.org/pypi/hermes-agent/json";
+                let json = fetch_latest_json(client, fallback)
+                    .await
+                    .map_err(|error| format!("{primary_error}; {error}"))?;
+                let version = validated_latest(
+                    json.get("info")
+                        .and_then(|value| value.get("version"))
+                        .and_then(|value| value.as_str()),
+                )?;
+                let version = drop_latest_behind_local(Some(version), local).ok_or_else(|| {
+                    "GitHub lookup failed; the older PyPI channel cannot confirm the installed version is current"
+                        .to_string()
+                })?;
+                return Ok(LatestToolVersion {
+                    version,
+                    url: fallback.into(),
+                    source: "pypi".into(),
+                });
+            }
+        }
+    } else {
+        let primary = fetch_latest_json(client, &url).await.and_then(|json| {
+            let tags = json
+                .as_object()
+                .ok_or_else(|| "npm dist-tags response is not an object".to_string())?;
+            let version = pick_latest_version(tags, npm_prerelease_tags(tool), local);
+            validated_latest(version.as_deref())
+        });
+        if tool == "opencode" && primary.is_err() {
+            let fallback = "https://api.github.com/repos/anomalyco/opencode/releases/latest";
+            let json = fetch_latest_json(client, fallback)
+                .await
+                .map_err(|error| format!("{}; {error}", primary.unwrap_err()))?;
+            let version = github_release_version_from_json(&json)
+                .ok_or_else(|| "GitHub release contains no valid version".to_string())?;
+            return Ok(LatestToolVersion {
+                version,
+                url: fallback.into(),
+                source: "github".into(),
+            });
+        }
+        primary
+    };
+    result.map(|version| LatestToolVersion {
+        version,
+        url,
+        source,
+    })
+}
+
+fn parse_desktop_windows_releases(body: &str) -> Result<String, String> {
+    body.trim_start_matches('\u{feff}')
+        .lines()
+        .filter_map(|line| {
+            let filename = line.split_whitespace().nth(1)?;
+            let version = filename
+                .strip_prefix("AnthropicClaude-")?
+                .strip_suffix("-full.nupkg")?;
+            let (_, pre) = parse_semver(version)?;
+            pre.is_empty().then_some(version.to_string())
+        })
+        .max_by(|left, right| compare_semver(left, right).unwrap_or(std::cmp::Ordering::Equal))
+        .ok_or_else(|| "Desktop release feed contains no valid stable version".into())
 }
 
 fn github_release_version_from_json(json: &serde_json::Value) -> Option<String> {
+    if json.get("draft").and_then(|value| value.as_bool()) == Some(true)
+        || json.get("prerelease").and_then(|value| value.as_bool()) == Some(true)
+    {
+        return None;
+    }
     let from_name = json
         .get("name")
         .and_then(|value| value.as_str())
@@ -1006,44 +1482,17 @@ fn release_display_version(candidate: &str) -> Option<String> {
 
 fn drop_latest_behind_local(latest: Option<String>, local_version: Option<&str>) -> Option<String> {
     let latest = latest?;
-    let local_leads = local_version
+    let local_not_behind = local_version
         .and_then(|local| compare_semver(local, &latest))
-        .is_some_and(|ordering| ordering == std::cmp::Ordering::Greater);
-    (!local_leads).then_some(latest)
+        .is_some_and(|ordering| ordering != std::cmp::Ordering::Less);
+    (!local_not_behind).then_some(latest)
 }
 
-async fn fetch_hermes_latest_version(
-    client: &reqwest::Client,
-    local_version: Option<&str>,
-) -> Option<String> {
-    if let Some(version) = fetch_github_latest_version(client, "NousResearch/hermes-agent").await {
-        return Some(version);
-    }
-    let pypi = fetch_pypi_latest_version(client, "hermes-agent").await;
-    drop_latest_behind_local(pypi, local_version)
-}
-
-/// Helper function to fetch latest version from PyPI
-async fn fetch_pypi_latest_version(client: &reqwest::Client, package: &str) -> Option<String> {
-    let url = format!("https://pypi.org/pypi/{package}/json");
-    match client.get(&url).timeout(LATEST_PROBE_TIMEOUT).send().await {
-        Ok(resp) => {
-            if let Ok(json) = resp.json::<serde_json::Value>().await {
-                json.get("info")
-                    .and_then(|info| info.get("version"))
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string())
-            } else {
-                None
-            }
-        }
-        Err(_) => None,
-    }
-}
-
-/// 预编译的版本号正则表达式
-static VERSION_RE: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"\d+\.\d+\.\d+(-[\w.]+)?").expect("Invalid version regex"));
+/// Keep the complete version token, including malformed suffixes, so strict
+/// validation cannot turn `1.2.3-` or `1.2.3.4` into a valid stable release.
+static VERSION_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r#"[0-9]+\.[0-9]+\.[0-9]+[^\s()\[\]{},:;"']*"#).expect("Invalid version regex")
+});
 
 /// 从版本输出中提取纯版本号
 fn extract_version(raw: &str) -> String {
@@ -1087,10 +1536,12 @@ fn try_get_version(tool: &str) -> ShellProbe {
             .filter(|s| is_valid_shell(s))
             .unwrap_or_else(|| "sh".to_string());
         let flag = default_flag_for_shell(&shell);
-        Command::new(shell)
-            .arg(flag)
-            .arg(format!("{tool} --version"))
-            .output()
+        let mut command = Command::new(shell);
+        command.arg(flag).arg(format!("{tool} --version"));
+        bounded_probe_output(
+            &mut command,
+            CommandDeadline::from_timeout(Some(INSTALL_PROBE_TIMEOUT)),
+        )
     };
 
     match output {
@@ -1115,7 +1566,7 @@ fn try_get_version(tool: &str) -> ShellProbe {
                 }
             }
         }
-        Err(_) => ShellProbe::NotFound(NOT_INSTALLED.to_string()),
+        Err(error) => ShellProbe::FoundButFailed(error),
     }
 }
 
@@ -1317,13 +1768,29 @@ fn try_get_version_wsl(
         ("sh".to_string(), "-c", cmd)
     };
 
-    let output = Command::new("wsl.exe")
-        .args(["-d", distro, "--", &shell, flag, &cmd])
-        .creation_flags(CREATE_NO_WINDOW)
-        .output();
+    // Killing wsl.exe alone does not reliably reap Linux descendants. Place a
+    // Linux timeout around the selected shell as well as the Windows deadline.
+    let invocation = format!(
+        "{} {} {}",
+        shell_single_quote(&shell),
+        shell_single_quote(flag),
+        shell_single_quote(&cmd)
+    );
+    let bounded = format!("command -v timeout >/dev/null 2>&1 || {{ echo 'bounded CLI execution requires timeout' >&2; exit 126; }}; exec timeout --signal=TERM --kill-after=1s 9s {invocation}");
+    let mut command = Command::new("wsl.exe");
+    command.args(["-d", distro, "--", "sh", "-c", &bounded]);
+    let output = bounded_probe_output(
+        &mut command,
+        CommandDeadline::from_timeout(Some(INSTALL_PROBE_TIMEOUT)),
+    );
 
     match output {
         Ok(out) => {
+            if matches!(out.status.code(), Some(124 | 137)) {
+                return ShellProbe::FoundButFailed(format!(
+                    "[WSL:{distro}] Version check timed out"
+                ));
+            }
             let stdout = decode_command_output(&out.stdout).trim().to_string();
             let stderr = decode_command_output(&out.stderr).trim().to_string();
             if out.status.success() {
@@ -1351,7 +1818,7 @@ fn try_get_version_wsl(
                 }
             }
         }
-        Err(e) => ShellProbe::NotFound(format!("[WSL:{distro}] exec failed: {e}")),
+        Err(e) => ShellProbe::FoundButFailed(format!("[WSL:{distro}] exec failed: {e}")),
     }
 }
 
@@ -1976,15 +2443,18 @@ fn run_windows_tool_command(
     tool_path: &Path,
     args: &[&str],
     new_path: &str,
-) -> std::io::Result<std::process::Output> {
-    build_windows_tool_command(tool_path, args, new_path).output()
+) -> Result<std::process::Output, String> {
+    bounded_probe_output(
+        &mut build_windows_tool_command(tool_path, args, new_path),
+        CommandDeadline::from_timeout(Some(INSTALL_PROBE_TIMEOUT)),
+    )
 }
 
 #[cfg(target_os = "windows")]
 fn run_windows_tool_version_command(
     tool_path: &Path,
     new_path: &str,
-) -> std::io::Result<std::process::Output> {
+) -> Result<std::process::Output, String> {
     run_windows_tool_command(tool_path, &["--version"], new_path)
 }
 
@@ -2002,9 +2472,13 @@ fn run_windows_tool_version_command(
 /// install elsewhere cannot mask a broken default.
 #[cfg(target_os = "windows")]
 fn probe_path_default_version(tool: &str) -> ShellProbe {
-    let path_default = match resolve_path_default(tool, None) {
+    let path_default = match resolve_path_default(
+        tool,
+        CommandDeadline::from_timeout(Some(INSTALL_PROBE_TIMEOUT)),
+    ) {
         Ok(Some(p)) => p,
-        _ => return ShellProbe::NotFound(NOT_INSTALLED.to_string()),
+        Ok(None) => return ShellProbe::NotFound(NOT_INSTALLED.to_string()),
+        Err(error) => return ShellProbe::FoundButFailed(error),
     };
     let current_path = effective_path_string();
     match run_windows_tool_version_command(&path_default, &current_path) {
@@ -2027,7 +2501,7 @@ fn probe_path_default_version(tool: &str) -> ShellProbe {
                 }
             }
         }
-        Err(_) => ShellProbe::NotFound(NOT_INSTALLED.to_string()),
+        Err(error) => ShellProbe::FoundButFailed(error),
     }
 }
 
@@ -2037,6 +2511,7 @@ fn scan_cli_version(tool: &str) -> ShellProbe {
     use std::process::Command;
 
     let search_paths = build_tool_search_paths(tool);
+    let deadline = CommandDeadline::from_timeout(Some(INSTALL_PROBE_TIMEOUT));
     #[cfg(target_os = "windows")]
     let current_path = effective_path_string();
     #[cfg(not(target_os = "windows"))]
@@ -2060,17 +2535,23 @@ fn scan_cli_version(tool: &str) -> ShellProbe {
             }
 
             #[cfg(target_os = "windows")]
-            let output = run_windows_tool_version_command(&tool_path, &new_path);
+            let output = bounded_probe_output(
+                &mut build_windows_tool_command(&tool_path, &["--version"], &new_path),
+                deadline,
+            );
 
             #[cfg(not(target_os = "windows"))]
             let output = {
-                Command::new(&tool_path)
-                    .arg("--version")
-                    .env("PATH", &new_path)
-                    .output()
+                let mut command = Command::new(&tool_path);
+                command.arg("--version").env("PATH", &new_path);
+                bounded_probe_output(&mut command, deadline)
             };
 
-            if let Ok(out) = output {
+            let out = match output {
+                Ok(out) => out,
+                Err(error) => return ShellProbe::FoundButFailed(error),
+            };
+            {
                 let stdout = decode_command_output(&out.stdout).trim().to_string();
                 let stderr = decode_command_output(&out.stderr).trim().to_string();
                 if out.status.success() {
@@ -2221,11 +2702,13 @@ fn login_shell_path() -> Option<String> {
         .filter(|s| is_valid_shell(s))
         .unwrap_or_else(|| "sh".to_string());
     let flag = default_flag_for_shell(&shell);
-    let out = Command::new(shell)
-        .arg(flag)
-        .arg("/usr/bin/env")
-        .output()
-        .ok()?;
+    let mut command = Command::new(shell);
+    command.arg(flag).arg("/usr/bin/env");
+    let out = bounded_probe_output(
+        &mut command,
+        CommandDeadline::from_timeout(Some(INSTALL_PROBE_TIMEOUT)),
+    )
+    .ok()?;
     if !out.status.success() {
         return None;
     }
@@ -2270,6 +2753,18 @@ fn resolve_path_default(
         return Ok(None);
     };
     Ok(std::fs::canonicalize(first).ok())
+}
+
+/// Locate the login-shell CLI without running it (session resume preflight).
+#[cfg(not(target_os = "windows"))]
+pub(crate) fn resolve_session_cli_path(tool: &str) -> Result<Option<std::path::PathBuf>, String> {
+    if !matches!(tool, "codex" | "claude") {
+        return Err("Unsupported session CLI".into());
+    }
+    resolve_path_default(
+        tool,
+        CommandDeadline::from_timeout(Some(std::time::Duration::from_secs(5))),
+    )
 }
 
 #[cfg(target_os = "windows")]
@@ -3059,6 +3554,28 @@ fn locate_default_tool(
 struct CommandDeadline {
     expires_at: std::time::Instant,
     limit: std::time::Duration,
+}
+
+fn bounded_probe_output(
+    command: &mut std::process::Command,
+    deadline: Option<CommandDeadline>,
+) -> Result<std::process::Output, String> {
+    use std::process::Stdio;
+    if let Some(deadline) = deadline {
+        deadline.remaining()?;
+    }
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    #[cfg(not(target_os = "windows"))]
+    isolate_child_process_group(command);
+    #[cfg(target_os = "windows")]
+    command.creation_flags(CREATE_NO_WINDOW);
+    let child = command
+        .spawn()
+        .map_err(|error| format!("Failed to start version check: {error}"))?;
+    wait_child_output(child, deadline)
 }
 
 impl CommandDeadline {
@@ -4694,6 +5211,202 @@ pub async fn set_window_theme(window: tauri::Window, theme: String) -> Result<()
 mod tests {
     use super::*;
     use std::path::{Path, PathBuf};
+
+    #[test]
+    fn toolcheck_catalog_does_not_expand_install_or_update_permissions() {
+        assert_eq!(CHECKABLE_TOOLS.len(), 9);
+        assert!(CHECKABLE_TOOLS.contains(&"claude-desktop"));
+        assert!(!VALID_TOOLS.contains(&"claude-desktop"));
+        assert_eq!(
+            normalize_requested_tools(&["claude-desktop".into(), "bincode".into(), "codex".into()]),
+            vec!["codex"]
+        );
+    }
+
+    #[test]
+    fn toolcheck_rejects_invalid_versions_and_never_marks_failures_current() {
+        for invalid in [
+            "",
+            "1.2",
+            "1.2.3-",
+            "1.2.3+",
+            "01.2.3",
+            "1.2.3-beta..1",
+            "1.2.3-01",
+            "1.2.3+bad+meta",
+            "1.2.3.4",
+            "1.2.3garbage",
+            "1.2.3-中文",
+            "false",
+        ] {
+            assert!(parse_semver(invalid).is_none(), "{invalid}");
+            assert!(validated_latest(Some(invalid)).is_err(), "{invalid}");
+            assert!(
+                parse_semver(&extract_version(&format!("tool {invalid}"))).is_none(),
+                "{invalid}"
+            );
+            assert_eq!(
+                tool_check_status(
+                    Some("1.2.3"),
+                    Some(invalid),
+                    None,
+                    None,
+                    false,
+                    false,
+                    false
+                ),
+                "error"
+            );
+        }
+        assert_eq!(
+            tool_check_status(
+                Some("1.2.3"),
+                None,
+                None,
+                Some("HTTP 503"),
+                false,
+                false,
+                false
+            ),
+            "error"
+        );
+        assert_eq!(
+            tool_check_status(
+                Some("1.2.3"),
+                Some("1.2.3"),
+                None,
+                None,
+                false,
+                false,
+                false
+            ),
+            "up_to_date"
+        );
+        assert_eq!(
+            tool_check_status(None, Some("1.2.3"), Some("guard"), None, false, true, false),
+            "blocked"
+        );
+        assert_eq!(
+            drop_latest_behind_local(Some("0.19.0".into()), Some("0.19.0")),
+            None
+        );
+    }
+
+    #[test]
+    fn toolcheck_desktop_official_feeds_and_appx_revisions_are_checked() {
+        assert_eq!(parse_desktop_windows_releases("\u{feff}HASH AnthropicClaude-2.2553.0-full.nupkg 123\nHASH AnthropicClaude-2.2552.0-full.nupkg 123").unwrap(), "2.2553.0");
+        assert!(
+            parse_desktop_windows_releases("HASH AnthropicClaude-invalid-full.nupkg 123").is_err()
+        );
+        assert_eq!(desktop_appx_version(&serde_json::json!([{ "Name":"Claude", "Publisher":"CN=Anthropic, O=Anthropic PBC", "Version":"2.2553.0.0" }])).unwrap(), Some("2.2553.0".into()));
+        assert!(desktop_appx_version(&serde_json::json!([{ "Name":"Claude", "Publisher":"CN=Anthropic", "Version":"2.2553.0.1" }])).is_err());
+        assert!(desktop_appx_version(
+            &serde_json::json!([{ "Name":"Claude", "Publisher":"Unknown", "Version":"2.2553.0.0" }])
+        )
+        .is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn toolcheck_reads_native_claude_metadata_without_executing_it() {
+        use std::os::unix::fs::symlink;
+        let home = tempfile::tempdir().unwrap();
+        let binary = home.path().join(".local/share/claude/versions/2.1.263");
+        std::fs::create_dir_all(binary.parent().unwrap()).unwrap();
+        std::fs::write(&binary, "#!/bin/sh\nexit 97\n").unwrap();
+        let path = home.path().join(".local/bin/claude");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        symlink(&binary, &path).unwrap();
+        assert_eq!(
+            metadata_version_for_claude(&path, home.path()),
+            Some("2.1.263".into())
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn toolcheck_timeout_kills_and_reaps_the_started_process() {
+        use std::process::{Command, Stdio};
+        let mut command = Command::new("/bin/sh");
+        command
+            .args(["-c", "sleep 30"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        isolate_child_process_group(&mut command);
+        let child = command.spawn().unwrap();
+        let pid = child.id() as libc::pid_t;
+        let started = std::time::Instant::now();
+        let result = wait_child_output(
+            child,
+            CommandDeadline::from_timeout(Some(std::time::Duration::from_millis(100))),
+        );
+        assert!(result.unwrap_err().contains("timed out"));
+        assert!(started.elapsed() < std::time::Duration::from_secs(3));
+        assert_eq!(
+            unsafe { libc::kill(pid, 0) },
+            -1,
+            "timed out child must have been reaped"
+        );
+        assert_eq!(
+            std::io::Error::last_os_error().raw_os_error(),
+            Some(libc::ESRCH)
+        );
+    }
+
+    fn toolcheck_http_fixture(status: &str, body: &str) -> (String, std::thread::JoinHandle<()>) {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let response = format!(
+            "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        );
+        let thread = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream
+                .set_read_timeout(Some(std::time::Duration::from_secs(3)))
+                .unwrap();
+            let mut request = [0; 4096];
+            let _ = stream.read(&mut request);
+            stream.write_all(response.as_bytes()).unwrap();
+        });
+        (url, thread)
+    }
+
+    #[tokio::test]
+    async fn toolcheck_remote_http_and_payload_failures_are_explicit() {
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
+        for (status, body) in [("503 Service Unavailable", "down"), ("200 OK", "not json")] {
+            let (url, server) = toolcheck_http_fixture(status, body);
+            assert!(fetch_latest_json(&client, &url).await.is_err());
+            server.join().unwrap();
+        }
+        let (url, server) = toolcheck_http_fixture("200 OK", "{\"latest\":\"1.2.3-\"}");
+        let json = fetch_latest_json(&client, &url).await.unwrap();
+        assert!(pick_latest_version(json.as_object().unwrap(), &[], None).is_none());
+        server.join().unwrap();
+    }
+
+    #[tokio::test]
+    #[ignore = "Explicit read-only live check; runs version/metadata probes and official HTTP lookups only"]
+    async fn toolcheck_live_all_integrated_tools_read_only() {
+        let results = get_tool_versions(None, None).await.unwrap();
+        assert_eq!(results.len(), CHECKABLE_TOOLS.len());
+        for result in results {
+            assert!(result.checked_at > 0);
+            if result.latest_version.is_none() {
+                assert!(result.latest_error.is_some());
+            }
+            if result.latest_error.is_some() {
+                assert_ne!(result.status, "up_to_date");
+            }
+            // Never print PATH, process diagnostics, tokens or user config.
+            println!("tool={} local={:?} latest={:?} status={} local_source={:?} official_source={:?} local_error={} latest_error={}",
+                result.name, result.version, result.latest_version, result.status, result.local_source, result.source_url,
+                result.local_error.is_some(), result.latest_error.is_some());
+        }
+    }
 
     /// 探测 helper 正常路径：spawn（含 pre_exec setsid）能启动、输出能捕获。
     /// `/bin/echo --version` 在 macOS/Linux 均即刻成功退出。

@@ -30,6 +30,31 @@ export interface WebDavSyncResult {
   status: string;
 }
 
+export interface ToolVersion {
+  name: string;
+  version: string | null;
+  latest_version: string | null;
+  error: string | null;
+  installed_but_broken: boolean;
+  env_type: "windows" | "wsl" | "macos" | "linux" | "unknown";
+  wsl_distro: string | null;
+  local_error?: string | null;
+  latest_error?: string | null;
+  status?:
+    | "up_to_date"
+    | "update_available"
+    | "ahead"
+    | "not_installed"
+    | "blocked"
+    | "error"
+    | "unsupported";
+  checked_at?: number | null;
+  source_url?: string | null;
+  latest_source?: string | null;
+  local_source?: string | null;
+  canonical_tool?: string | null;
+}
+
 export const settingsApi = {
   async get(): Promise<Settings> {
     return await invoke("get_settings");
@@ -246,17 +271,7 @@ export const settingsApi = {
       string,
       { wslShell?: string | null; wslShellFlag?: string | null }
     >,
-  ): Promise<
-    Array<{
-      name: string;
-      version: string | null;
-      latest_version: string | null;
-      error: string | null;
-      installed_but_broken: boolean;
-      env_type: "windows" | "wsl" | "macos" | "linux" | "unknown";
-      wsl_distro: string | null;
-    }>
-  > {
+  ): Promise<ToolVersion[]> {
     return await invoke("get_tool_versions", { tools, wslShellByTool });
   },
 

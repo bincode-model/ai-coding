@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
-use std::sync::LazyLock;
-use std::time::Duration;
+use std::sync::{LazyLock, Mutex};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use regex::Regex;
 use rusqlite::Connection;
@@ -204,7 +204,9 @@ fn load_thread_titles_from_db(db_path: &Path) -> HashMap<String, String> {
 pub fn load_messages(path: &Path) -> Result<Vec<SessionMessage>, String> {
     let file = File::open(path).map_err(|e| format!("Failed to open session file: {e}"))?;
     let reader = BufReader::new(file);
-    let mut messages = Vec::new();
+    let mut messages = MessageAccumulator::default();
+    let mut has_original_history = false;
+    let mut turn_id = None;
 
     for line in reader.lines() {
         let line = match line {
@@ -216,56 +218,241 @@ pub fn load_messages(path: &Path) -> Result<Vec<SessionMessage>, String> {
             Err(_) => continue,
         };
 
-        if value.get("type").and_then(Value::as_str) != Some("response_item") {
+        let payload = value.get("payload").unwrap_or(&value);
+        if let Some(id) = payload.get("turn_id").and_then(Value::as_str) {
+            turn_id = Some(id.to_string());
+        }
+        if value.get("type").and_then(Value::as_str) == Some("compacted") {
+            if !has_original_history {
+                if let Some(history) = payload.get("replacement_history").and_then(Value::as_array)
+                {
+                    // Forked rollouts can start with a compacted snapshot. It
+                    // restores only missing history; never replace original turns.
+                    let mut setup: Vec<_> = messages
+                        .entries
+                        .into_iter()
+                        .filter(|entry| entry.sources & RecordSource::Replacement as u8 == 0)
+                        .collect();
+                    messages = MessageAccumulator::default();
+                    for item in history {
+                        if let Some(message) = visible_item(item, None) {
+                            messages.push(message, RecordSource::Replacement, turn_id.clone());
+                        }
+                    }
+                    // Keep leading instructions when the snapshot does not
+                    // already contain them, without repeating snapshot copies.
+                    setup.retain(|entry| {
+                        !messages.entries.iter().any(|replacement| {
+                            replacement.item.message.role == entry.item.message.role
+                                && replacement.item.message.content == entry.item.message.content
+                        })
+                    });
+                    setup.append(&mut messages.entries);
+                    messages.entries = setup;
+                }
+            }
             continue;
         }
-
-        let payload = match value.get("payload") {
-            Some(payload) => payload,
-            None => continue,
-        };
-
-        let payload_type = payload.get("type").and_then(Value::as_str).unwrap_or("");
-
-        // Codex uses separate payload types for tool interactions
-        let (role, content) = match payload_type {
-            "message" => {
-                let role = payload
-                    .get("role")
-                    .and_then(Value::as_str)
-                    .unwrap_or("unknown")
-                    .to_string();
-                let content = payload.get("content").map(extract_text).unwrap_or_default();
-                (role, content)
-            }
-            "function_call" => {
-                let name = payload
-                    .get("name")
-                    .and_then(Value::as_str)
-                    .unwrap_or("unknown");
-                ("assistant".to_string(), format!("[Tool: {name}]"))
-            }
-            "function_call_output" => {
-                let output = payload
-                    .get("output")
-                    .and_then(Value::as_str)
-                    .unwrap_or("")
-                    .to_string();
-                ("tool".to_string(), output)
-            }
-            _ => continue,
-        };
-
-        if content.trim().is_empty() {
-            continue;
+        if let Some((message, source)) = visible_record(&value) {
+            // Setup instructions alone are not a conversation transcript.
+            // A fork can store them before its only surviving history snapshot.
+            has_original_history |=
+                !matches!(message.message.role.as_str(), "system" | "developer");
+            messages.push(message, source, turn_id.clone());
         }
-
-        let ts = value.get("timestamp").and_then(parse_timestamp_to_ms);
-
-        messages.push(SessionMessage { role, content, ts });
     }
 
-    Ok(messages)
+    Ok(messages
+        .entries
+        .into_iter()
+        .map(|entry| entry.item.message)
+        .collect())
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RecordSource {
+    Response = 1,
+    Event = 2,
+    Completed = 4,
+    Replacement = 8,
+}
+
+struct VisibleItem {
+    message: SessionMessage,
+    id: Option<String>,
+    is_tool_call: bool,
+}
+
+struct MessageEntry {
+    item: VisibleItem,
+    sources: u8,
+    turn_id: Option<String>,
+}
+
+#[derive(Default)]
+struct MessageAccumulator {
+    entries: Vec<MessageEntry>,
+}
+
+impl MessageAccumulator {
+    fn push(&mut self, item: VisibleItem, source: RecordSource, turn_id: Option<String>) {
+        let bit = source as u8;
+        // Pair mirrored representations once, within the current conversation
+        // turn. Never globally deduplicate text: repeated user prompts and
+        // identical tool output in later turns are legitimate history.
+        for entry in self.entries.iter_mut().rev() {
+            if entry.turn_id != turn_id || entry.sources & RecordSource::Replacement as u8 != 0 {
+                break;
+            }
+            let previous = &entry.item;
+            if previous.message.role != item.message.role {
+                if item.message.role == "user" || previous.message.role == "user" {
+                    break;
+                }
+                continue;
+            }
+            if entry.sources & bit != 0 {
+                // An intervening representation from the same source is a new
+                // occurrence, even when it contains exactly the same text.
+                break;
+            }
+            let ids_compatible = match (&previous.id, &item.id) {
+                (Some(left), Some(right)) => left == right,
+                _ => true,
+            };
+            if ids_compatible
+                && previous.is_tool_call == item.is_tool_call
+                && previous.message.content == item.message.content
+            {
+                entry.sources |= bit;
+                if source == RecordSource::Response {
+                    entry.item = item;
+                }
+                return;
+            }
+        }
+        self.entries.push(MessageEntry {
+            item,
+            sources: bit,
+            turn_id,
+        });
+    }
+}
+
+fn visible_record(value: &Value) -> Option<(VisibleItem, RecordSource)> {
+    let ts = value.get("timestamp").and_then(parse_timestamp_to_ms);
+    let payload = value.get("payload").unwrap_or(value);
+    let (item, source) = match value.get("type").and_then(Value::as_str)? {
+        "response_item" => (payload, RecordSource::Response),
+        "event_msg" => match payload.get("type").and_then(Value::as_str) {
+            Some("item_completed" | "itemCompleted") => {
+                (payload.get("item")?, RecordSource::Completed)
+            }
+            Some("user_message" | "agent_message") => (payload, RecordSource::Event),
+            _ => return None,
+        },
+        "item_completed" | "itemCompleted" => (payload.get("item")?, RecordSource::Completed),
+        _ => return None,
+    };
+    visible_item(item, ts).map(|message| (message, source))
+}
+
+fn visible_item(item: &Value, ts: Option<i64>) -> Option<VisibleItem> {
+    let kind = item.get("type").and_then(Value::as_str)?;
+    let mut is_tool_call = false;
+    let (role, content) = match kind {
+        "message" => (
+            item.get("role")
+                .and_then(Value::as_str)
+                .unwrap_or("unknown")
+                .to_string(),
+            item.get("content").map(extract_text).unwrap_or_default(),
+        ),
+        "user_message" | "userMessage" | "agent_message" | "agentMessage" => {
+            let role = if matches!(kind, "user_message" | "userMessage") {
+                "user"
+            } else {
+                "assistant"
+            };
+            let content = item
+                .get("message")
+                .or_else(|| item.get("text"))
+                .or_else(|| item.get("content"))
+                .map(extract_text)
+                .unwrap_or_default();
+            (role.to_string(), content)
+        }
+        "function_call" | "custom_tool_call" | "functionCall" | "customToolCall" => {
+            is_tool_call = true;
+            let name = item
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or("unknown");
+            let input = item
+                .get("arguments")
+                .or_else(|| item.get("input"))
+                .map(tool_text)
+                .unwrap_or_default();
+            let content = if input.is_empty() {
+                format!("[Tool: {name}]")
+            } else {
+                format!("[Tool: {name}]\n{input}")
+            };
+            ("assistant".to_string(), content)
+        }
+        "function_call_output"
+        | "custom_tool_call_output"
+        | "functionCallOutput"
+        | "customToolCallOutput" => (
+            "tool".to_string(),
+            item.get("output").map(tool_text).unwrap_or_default(),
+        ),
+        // Do not invent text for encrypted reasoning, binary attachments, or
+        // unknown event kinds. Only completed, stored visible content is read.
+        _ => return None,
+    };
+    if content.trim().is_empty() {
+        return None;
+    }
+    Some(VisibleItem {
+        message: SessionMessage { role, content, ts },
+        id: item
+            .get("call_id")
+            .or_else(|| item.get("id"))
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        is_tool_call,
+    })
+}
+
+fn tool_text(value: &Value) -> String {
+    match value {
+        Value::Null => String::new(),
+        Value::String(text) => text.clone(),
+        Value::Array(items) => items
+            .iter()
+            .map(|item| {
+                // Plain text blocks have a useful readable representation.
+                // Keep other structured output intact, including mixed arrays.
+                if item.as_object().is_some_and(|fields| {
+                    fields
+                        .keys()
+                        .all(|key| matches!(key.as_str(), "type" | "text"))
+                        && matches!(
+                            fields.get("type").and_then(Value::as_str),
+                            Some("text" | "input_text" | "output_text")
+                        )
+                        && fields.get("text").is_some_and(Value::is_string)
+                }) {
+                    extract_text(item)
+                } else {
+                    tool_text(item)
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n"),
+        _ => value.to_string(),
+    }
 }
 
 pub fn delete_session(_root: &Path, path: &Path, session_id: &str) -> Result<bool, String> {
@@ -289,102 +476,255 @@ pub fn delete_session(_root: &Path, path: &Path, session_id: &str) -> Result<boo
     Ok(true)
 }
 
-fn parse_session(path: &Path) -> Option<SessionMeta> {
+pub(crate) fn parse_session(path: &Path) -> Option<SessionMeta> {
     parse_session_with_titles(path, &HashMap::new())
+}
+
+#[derive(Clone, Default)]
+struct ScannedMetadata {
+    session_id: Option<String>,
+    project_dir: Option<String>,
+    created_at: Option<i64>,
+    first_user_message: Option<String>,
+    is_subagent: bool,
+    last_active_at: Option<i64>,
+    summary: Option<String>,
+}
+
+impl ScannedMetadata {
+    fn observe(&mut self, value: &Value) {
+        if self.created_at.is_none() {
+            self.created_at = value.get("timestamp").and_then(parse_timestamp_to_ms);
+        }
+        if value.get("type").and_then(Value::as_str) == Some("session_meta") {
+            if let Some(payload) = value.get("payload") {
+                // A resumed/forked rollout may contain earlier metadata from a
+                // different session. The final metadata describes its live owner.
+                if let Some(id) = payload
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .filter(|id| !id.is_empty())
+                {
+                    self.session_id = Some(id.to_string());
+                    self.is_subagent = is_subagent_source(payload.get("source"));
+                }
+                if let Some(cwd) = payload.get("cwd").and_then(Value::as_str) {
+                    self.project_dir = Some(cwd.to_string());
+                }
+                if self.created_at.is_none() {
+                    self.created_at = payload.get("timestamp").and_then(parse_timestamp_to_ms);
+                }
+            }
+        }
+        if self.first_user_message.is_none() {
+            if let Some((item, _)) = visible_record(value) {
+                if item.message.role == "user" {
+                    self.first_user_message =
+                        title_candidate_from_user_message(&item.message.content)
+                            .map(|title| truncate_summary(&title, TITLE_MAX_CHARS));
+                }
+            }
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
+struct FileStamp {
+    len: u64,
+    modified: Option<SystemTime>,
+    created: Option<SystemTime>,
+}
+
+impl FileStamp {
+    fn from_metadata(meta: &std::fs::Metadata) -> Self {
+        Self {
+            len: meta.len(),
+            modified: meta.modified().ok(),
+            created: meta.created().ok(),
+        }
+    }
+}
+
+#[derive(Clone)]
+struct CachedMetadata {
+    stamp: FileStamp,
+    // Offset/state include only complete lines; an in-progress JSON record is
+    // reread after the CLI appends the rest of it.
+    offset: u64,
+    committed: ScannedMetadata,
+    visible: ScannedMetadata,
+    anchor: Vec<u8>,
+}
+
+static METADATA_CACHE: LazyLock<Mutex<HashMap<PathBuf, CachedMetadata>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+// Only deserialize the small metadata fields after a title has been found.
+// Serde skips tool inputs/outputs without allocating their potentially huge
+// strings while still finding metadata anywhere in a resumed rollout.
+#[derive(Deserialize)]
+struct MetadataRecord {
+    #[serde(rename = "type")]
+    record_type: String,
+    timestamp: Option<Value>,
+    payload: MetadataPayload,
+}
+
+#[derive(Deserialize)]
+struct MetadataPayload {
+    id: Option<String>,
+    cwd: Option<String>,
+    timestamp: Option<Value>,
+    source: Option<Value>,
+}
+
+fn observe_metadata_only(metadata: &mut ScannedMetadata, bytes: &[u8]) {
+    let Ok(record) = serde_json::from_slice::<MetadataRecord>(bytes) else {
+        return;
+    };
+    if metadata.created_at.is_none() {
+        metadata.created_at = record.timestamp.as_ref().and_then(parse_timestamp_to_ms);
+    }
+    if record.record_type != "session_meta" {
+        return;
+    }
+    if let Some(id) = record.payload.id.filter(|id| !id.is_empty()) {
+        metadata.session_id = Some(id);
+        metadata.is_subagent = is_subagent_source(record.payload.source.as_ref());
+    }
+    if let Some(cwd) = record.payload.cwd {
+        metadata.project_dir = Some(cwd);
+    }
+    if metadata.created_at.is_none() {
+        metadata.created_at = record
+            .payload
+            .timestamp
+            .as_ref()
+            .and_then(parse_timestamp_to_ms);
+    }
+}
+
+fn metadata_anchor(file: &mut File, offset: u64) -> std::io::Result<Vec<u8>> {
+    let count = offset.min(256) as usize;
+    file.seek(SeekFrom::Start(offset - count as u64))?;
+    let mut anchor = vec![0; count];
+    file.read_exact(&mut anchor)?;
+    Ok(anchor)
+}
+
+fn scan_metadata(path: &Path) -> std::io::Result<(ScannedMetadata, FileStamp)> {
+    let mut file = File::open(path)?;
+    let stamp = FileStamp::from_metadata(&file.metadata()?);
+    let previous = METADATA_CACHE
+        .lock()
+        .ok()
+        .and_then(|map| map.get(path).cloned());
+    if let Some(cached) = previous.as_ref().filter(|cached| cached.stamp == stamp) {
+        return Ok((cached.visible.clone(), stamp));
+    }
+    let mut committed = ScannedMetadata::default();
+    let mut offset = 0;
+    if let Some(cached) = previous
+        .filter(|cached| stamp.len > cached.stamp.len && stamp.created == cached.stamp.created)
+    {
+        // Verify the previous read boundary before treating a larger file as
+        // appended. Truncation/replacement otherwise starts a fresh scan.
+        if metadata_anchor(&mut file, cached.offset)? == cached.anchor {
+            committed = cached.committed;
+            offset = cached.offset;
+        }
+    }
+    file.seek(SeekFrom::Start(offset))?;
+    let mut reader = BufReader::new((&mut file).take(stamp.len - offset));
+    let mut bytes = Vec::new();
+    let mut visible = committed.clone();
+    loop {
+        bytes.clear();
+        let count = reader.read_until(b'\n', &mut bytes)?;
+        if count == 0 {
+            break;
+        }
+        if visible.first_user_message.is_some() {
+            observe_metadata_only(&mut visible, &bytes);
+        } else if let Ok(value) = serde_json::from_slice::<Value>(&bytes) {
+            visible.observe(&value);
+        }
+        if bytes.last() == Some(&b'\n') {
+            offset += count as u64;
+            committed = visible.clone();
+        } else {
+            break;
+        }
+    }
+    drop(reader);
+    let anchor = metadata_anchor(&mut file, offset)?;
+    let (_, tail) = read_head_tail_lines(path, 0, 30)?;
+    // Cache tail data with the file stamp as well: unchanged large records must
+    // not be parsed again on each filesystem watcher refresh.
+    visible.last_active_at = None;
+    visible.summary = None;
+    for line in tail.iter().rev() {
+        let Ok(value) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
+        if visible.last_active_at.is_none() {
+            visible.last_active_at = value.get("timestamp").and_then(parse_timestamp_to_ms);
+        }
+        if visible.summary.is_none() {
+            if let Some((item, _)) = visible_record(&value) {
+                if !item.is_tool_call && item.message.role != "tool" {
+                    visible.summary = Some(truncate_summary(&item.message.content, 160));
+                }
+            }
+        }
+        if visible.last_active_at.is_some() && visible.summary.is_some() {
+            break;
+        }
+    }
+    visible.last_active_at = visible.last_active_at.or_else(|| {
+        stamp
+            .modified
+            .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+            .map(|duration| duration.as_millis() as i64)
+    });
+    if let Ok(mut map) = METADATA_CACHE.lock() {
+        const MAX_CACHED_SESSIONS: usize = 4096;
+        if map.len() >= MAX_CACHED_SESSIONS && !map.contains_key(path) {
+            if let Some(evicted) = map.keys().next().cloned() {
+                map.remove(&evicted);
+            }
+        }
+        map.insert(
+            path.to_path_buf(),
+            CachedMetadata {
+                stamp: stamp.clone(),
+                offset,
+                committed,
+                visible: visible.clone(),
+                anchor,
+            },
+        );
+    }
+    Ok((visible, stamp))
 }
 
 fn parse_session_with_titles(
     path: &Path,
     thread_titles: &HashMap<String, String>,
 ) -> Option<SessionMeta> {
-    let (head, tail) = read_head_tail_lines(path, 10, 30).ok()?;
-
-    let mut session_id: Option<String> = None;
-    let mut project_dir: Option<String> = None;
-    let mut created_at: Option<i64> = None;
-    let mut first_user_message: Option<String> = None;
-
-    // Extract metadata and first user message from head lines
-    for line in &head {
-        let value: Value = match serde_json::from_str(line) {
-            Ok(parsed) => parsed,
-            Err(_) => continue,
-        };
-        if created_at.is_none() {
-            created_at = value.get("timestamp").and_then(parse_timestamp_to_ms);
-        }
-        if value.get("type").and_then(Value::as_str) == Some("session_meta") {
-            if let Some(payload) = value.get("payload") {
-                if is_subagent_source(payload.get("source")) {
-                    return None;
-                }
-                if session_id.is_none() {
-                    session_id = payload
-                        .get("id")
-                        .and_then(Value::as_str)
-                        .map(|s| s.to_string());
-                }
-                if project_dir.is_none() {
-                    project_dir = payload
-                        .get("cwd")
-                        .and_then(Value::as_str)
-                        .map(|s| s.to_string());
-                }
-                if let Some(ts) = payload.get("timestamp").and_then(parse_timestamp_to_ms) {
-                    created_at.get_or_insert(ts);
-                }
-            }
-        }
-        // Extract first user message as title candidate
-        if first_user_message.is_none()
-            && value.get("type").and_then(Value::as_str) == Some("response_item")
-        {
-            if let Some(payload) = value.get("payload") {
-                if payload.get("type").and_then(Value::as_str) == Some("message")
-                    && payload.get("role").and_then(Value::as_str) == Some("user")
-                {
-                    let text = payload.get("content").map(extract_text).unwrap_or_default();
-                    if let Some(title) = title_candidate_from_user_message(&text) {
-                        first_user_message = Some(title);
-                    }
-                }
-            }
-        }
-        if session_id.is_some()
-            && project_dir.is_some()
-            && created_at.is_some()
-            && first_user_message.is_some()
-        {
-            break;
-        }
+    let (metadata, _) = scan_metadata(path).ok()?;
+    if metadata.is_subagent {
+        return None;
     }
-
-    // Extract last_active_at and summary from tail lines (reverse order)
-    let mut last_active_at: Option<i64> = None;
-    let mut summary: Option<String> = None;
-
-    for line in tail.iter().rev() {
-        let value: Value = match serde_json::from_str(line) {
-            Ok(parsed) => parsed,
-            Err(_) => continue,
-        };
-        if last_active_at.is_none() {
-            last_active_at = value.get("timestamp").and_then(parse_timestamp_to_ms);
-        }
-        if summary.is_none() && value.get("type").and_then(Value::as_str) == Some("response_item") {
-            if let Some(payload) = value.get("payload") {
-                if payload.get("type").and_then(Value::as_str) == Some("message") {
-                    let text = payload.get("content").map(extract_text).unwrap_or_default();
-                    if !text.trim().is_empty() {
-                        summary = Some(text);
-                    }
-                }
-            }
-        }
-        if last_active_at.is_some() && summary.is_some() {
-            break;
-        }
-    }
+    let ScannedMetadata {
+        session_id,
+        project_dir,
+        created_at,
+        first_user_message,
+        last_active_at,
+        summary,
+        ..
+    } = metadata;
 
     let session_id = session_id.or_else(|| infer_session_id_from_filename(path));
     let session_id = session_id?;
@@ -399,8 +739,6 @@ fn parse_session_with_titles(
                 .and_then(path_basename)
                 .map(|v| v.to_string())
         });
-
-    let summary = summary.map(|text| truncate_summary(&text, 160));
 
     Some(SessionMeta {
         provider_id: PROVIDER_ID.to_string(),
@@ -525,7 +863,248 @@ fn collect_jsonl_files(root: &Path, files: &mut Vec<PathBuf>) {
 mod tests {
     use super::*;
     use crate::codex_state_db::CODEX_STATE_DB_FILENAME;
+    use serde_json::json;
     use tempfile::tempdir;
+
+    fn write_records(path: &Path, records: &[Value]) {
+        let text = records
+            .iter()
+            .map(Value::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        std::fs::write(path, format!("{text}\n")).unwrap();
+    }
+
+    fn response_message(role: &str, text: &str) -> Value {
+        json!({"type":"response_item", "payload":{"type":"message", "role":role, "content":[{"type":"text","text":text}]}})
+    }
+
+    fn event_message(role: &str, text: &str) -> Value {
+        let kind = if role == "user" {
+            "user_message"
+        } else {
+            "agent_message"
+        };
+        json!({"type":"event_msg", "payload":{"type":kind,"message":text}})
+    }
+
+    #[test]
+    fn mirrored_messages_are_paired_without_dropping_repeated_turns() {
+        let temp = tempdir().unwrap();
+        let path = temp.path().join("mirrors.jsonl");
+        let mut records = Vec::new();
+        for turn in ["turn-one", "turn-two"] {
+            records.extend([
+                json!({"type":"event_msg","payload":{"type":"task_started","turn_id":turn}}),
+                event_message("user", "再试一次"),
+                response_message("user", "再试一次"),
+                response_message("assistant", "完成"),
+                event_message("assistant", "完成"),
+                json!({"type":"event_msg","payload":{"type":"item_completed","item":{"type":"agentMessage","text":"完成"}}}),
+            ]);
+        }
+        write_records(&path, &records);
+        let messages = load_messages(&path).unwrap();
+        assert_eq!(messages.len(), 4);
+        assert_eq!(
+            messages
+                .iter()
+                .map(|m| m.content.as_str())
+                .collect::<Vec<_>>(),
+            ["再试一次", "完成", "再试一次", "完成"]
+        );
+    }
+
+    #[test]
+    fn same_source_repeats_and_unmirrored_event_turns_remain_visible() {
+        let temp = tempdir().unwrap();
+        let path = temp.path().join("repeat.jsonl");
+        write_records(
+            &path,
+            &[
+                event_message("user", "repeat"),
+                event_message("user", "repeat"),
+                event_message("assistant", "ok"),
+                response_message("user", "repeat"),
+                response_message("user", "repeat"),
+                response_message("assistant", "ok"),
+            ],
+        );
+        let messages = load_messages(&path).unwrap();
+        assert_eq!(messages.len(), 6);
+    }
+
+    #[test]
+    fn custom_tools_keep_arguments_and_structured_outputs() {
+        let temp = tempdir().unwrap();
+        let path = temp.path().join("tools.jsonl");
+        write_records(
+            &path,
+            &[
+                json!({"type":"response_item","payload":{"type":"custom_tool_call","name":"apply_patch","call_id":"patch-one","input":"*** Begin Patch\n完整补丁\n*** End Patch"}}),
+                json!({"type":"response_item","payload":{"type":"custom_tool_call_output","call_id":"patch-one","output":[{"type":"text","text":"Success"}]}}),
+                json!({"type":"response_item","payload":{"type":"function_call","name":"shell","arguments":"{\"cmd\":\"pwd\"}"}}),
+                json!({"type":"response_item","payload":{"type":"function_call_output","output":{"exit_code":0,"text":"工作目录","details":"完整结构"}}}),
+                json!({"type":"response_item","payload":{"type":"function_call_output","output":[{"type":"text","text":"可读文本"},{"exit_code":1,"stderr":"不能丢失"}]}}),
+            ],
+        );
+        let messages = load_messages(&path).unwrap();
+        assert_eq!(messages.len(), 5);
+        assert!(messages[0].content.contains("完整补丁"));
+        assert_eq!(messages[1].content, "Success");
+        assert!(messages[2].content.contains("\"cmd\":\"pwd\""));
+        assert!(messages[3].content.contains("工作目录"));
+        assert!(messages[3].content.contains("完整结构"));
+        assert!(messages[4].content.contains("可读文本"));
+        assert!(messages[4].content.contains("不能丢失"));
+    }
+
+    #[test]
+    fn completed_item_messages_are_loaded_and_mirrored_once() {
+        let temp = tempdir().unwrap();
+        let path = temp.path().join("completed.jsonl");
+        write_records(
+            &path,
+            &[
+                json!({"type":"event_msg","payload":{"type":"item_completed","item":{"type":"userMessage","content":[{"type":"input_text","text":"只有完成事件"}]}}}),
+                json!({"type":"item_completed","payload":{"item":{"type":"message","role":"assistant","content":"结果"}}}),
+                response_message("assistant", "结果"),
+                json!({"type":"response_item","payload":{"type":"reasoning","encrypted_content":"not-visible"}}),
+            ],
+        );
+        let messages = load_messages(&path).unwrap();
+        assert_eq!(messages.len(), 2);
+        assert_eq!(messages[0].content, "只有完成事件");
+        assert_eq!(messages[1].content, "结果");
+    }
+
+    #[test]
+    fn compacted_snapshot_restores_missing_history_without_replacing_original_turns() {
+        let temp = tempdir().unwrap();
+        let path = temp.path().join("compacted.jsonl");
+        let compacted = json!({"type":"compacted","payload":{"replacement_history":[
+            {"type":"message","role":"user","content":"早期问题"},
+            {"type":"message","role":"assistant","content":"早期答复"}
+        ]}});
+        write_records(
+            &path,
+            &[compacted.clone(), response_message("user", "继续")],
+        );
+        assert_eq!(
+            load_messages(&path)
+                .unwrap()
+                .iter()
+                .map(|m| m.content.as_str())
+                .collect::<Vec<_>>(),
+            ["早期问题", "早期答复", "继续"]
+        );
+
+        write_records(
+            &path,
+            &[
+                response_message("developer", "启动指令"),
+                compacted.clone(),
+                response_message("user", "继续"),
+            ],
+        );
+        assert_eq!(
+            load_messages(&path)
+                .unwrap()
+                .iter()
+                .map(|m| m.content.as_str())
+                .collect::<Vec<_>>(),
+            ["启动指令", "早期问题", "早期答复", "继续"]
+        );
+
+        write_records(
+            &path,
+            &[
+                response_message("user", "原始问题"),
+                compacted,
+                response_message("assistant", "最新答复"),
+            ],
+        );
+        assert_eq!(
+            load_messages(&path)
+                .unwrap()
+                .iter()
+                .map(|m| m.content.as_str())
+                .collect::<Vec<_>>(),
+            ["原始问题", "最新答复"]
+        );
+    }
+
+    #[test]
+    fn resumed_subagent_uses_final_metadata_beyond_head_window() {
+        let temp = tempdir().unwrap();
+        let path = temp.path().join("resumed.jsonl");
+        let mut records = vec![
+            json!({"type":"session_meta","payload":{"id":"old-child","cwd":"/old","source":{"subagent":{}}}}),
+            event_message("user", "恢复后的问题"),
+        ];
+        records
+            .extend((0..40).map(|_| json!({"type":"event_msg","payload":{"type":"token_count"}})));
+        records.push(json!({"type":"session_meta","payload":{"id":"live-id","cwd":"/current","source":"cli"}}));
+        records.push(event_message("user", "恢复后的问题"));
+        write_records(&path, &records);
+        let session = parse_session(&path).unwrap();
+        assert_eq!(session.session_id, "live-id");
+        assert_eq!(session.project_dir.as_deref(), Some("/current"));
+        assert_eq!(
+            session.resume_command.as_deref(),
+            Some("codex resume live-id")
+        );
+        assert_eq!(session.title.as_deref(), Some("恢复后的问题"));
+    }
+
+    #[test]
+    fn cached_metadata_handles_appends_partial_records_and_replacement() {
+        use std::io::Write;
+        let temp = tempdir().unwrap();
+        let path = temp.path().join("changing.jsonl");
+        write_records(
+            &path,
+            &[json!({"type":"session_meta","payload":{"id":"first","source":"cli"}})],
+        );
+        assert_eq!(parse_session(&path).unwrap().session_id, "first");
+        let partial = "{\"type\":\"session_meta\",\"payload\":{\"id\":\"second\",\"source\":";
+        let mut file = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&path)
+            .unwrap();
+        file.write_all(partial.as_bytes()).unwrap();
+        assert_eq!(parse_session(&path).unwrap().session_id, "first");
+        file.write_all(b"\"cli\"}}\n").unwrap();
+        assert_eq!(parse_session(&path).unwrap().session_id, "second");
+        drop(file);
+
+        write_records(
+            &path,
+            &[
+                json!({"type":"session_meta","payload":{"id":"replacement","cwd":"/replacement","source":{"subagent":{}}}}),
+            ],
+        );
+        assert!(parse_session(&path).is_none());
+    }
+
+    #[test]
+    fn missing_record_timestamps_fall_back_to_file_mtime() {
+        let temp = tempdir().unwrap();
+        let path = temp.path().join("no-timestamps.jsonl");
+        write_records(
+            &path,
+            &[json!({"type":"session_meta","payload":{"id":"mtime-id","source":"cli"}})],
+        );
+        let expected = path
+            .metadata()
+            .unwrap()
+            .modified()
+            .unwrap()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as i64;
+        assert_eq!(parse_session(&path).unwrap().last_active_at, Some(expected));
+    }
 
     fn write_codex_session(path: &Path, session_id: &str, message: &str) {
         std::fs::write(

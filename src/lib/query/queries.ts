@@ -309,6 +309,8 @@ export const useSessionsQuery = () => {
     queryKey: ["sessions"],
     queryFn: async () => sessionsApi.list(),
     staleTime: 30 * 1000,
+    refetchInterval: 15 * 1000,
+    refetchIntervalInBackground: false,
   });
 };
 

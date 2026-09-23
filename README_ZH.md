@@ -30,7 +30,8 @@ AI Coding 不是普通聊天壳，而是给 AI 编程用户准备的桌面控制
 - **国产模型 / 海外模型自由切换**：添加供应商时按“国模 / 自定义配置 / 美模（海外模型）”分区，内置 DeepSeek、Kimi、智谱 GLM、千帆、百炼、SiliconFlow、ModelScope、Claude、Gemini、OpenAI 兼容服务、AWS Bedrock 等常见选择。
 - **同时管理 10 个 AI 编程 App**：支持 Claude Code、Claude Desktop、Codex、Gemini CLI、OpenCode、OpenClaw、Hermes、Grok Build、Pi 和 bincode；其中 bincode 按 OpenCode 兼容方式接入，可独立显示和切换。
 - **跨工具记忆同步**：一键把 Claude Code 的 `CLAUDE.md` 记忆同步到 Codex、Gemini、Hermes、OpenCode、OpenClaw 等工具，不用每个工具手动复制一遍。
-- **会话管理与 Markdown 导出**：集中查看本地 AI 编程会话，支持搜索、恢复会话命令、删除会话，并可把当前会话一键导出为 `.md` 文件，方便归档、复盘和发给别人。
+- **会话管理与 Markdown 导出**：按 Agent 查看会话，精准或模糊搜索完整消息内容，也可主动合并检索；支持置顶、归档、自定义命名、恢复指定会话和导出 `.md` 文件。
+- **CLI 版本检查**：在设置中查看各工具的本地版本和已发布版本，涵盖 Claude Code、Codex、Gemini CLI、OpenCode、OpenClaw、Hermes、Grok Build、Pi 等。
 - **Apple 风格深色界面**：默认深色模式，暖橙主色，底部 macOS Dock 风格导航，图标支持悬停动态放大和名称提示，整体更接近桌面 App 的使用体验。
 - **统一 MCP 管理**：管理 MCP Server，并同步到 Claude、Codex、Gemini、OpenCode、Hermes 等工具，减少多份配置重复维护。
 - **统一 Skills 管理**：支持 Skills 导入、安装、同步、备份和发现，可使用统一目录 `~/.agents/skills` 管理技能脚本。
@@ -75,7 +76,7 @@ AI Coding 不是普通聊天壳，而是给 AI 编程用户准备的桌面控制
 
 ### macOS（Apple Silicon）
 
-[下载 AI Coding v3.22.0 macOS 安装包](downloads/AI-Coding-v3.22.0-macOS-aarch64.dmg)
+[下载 AI Coding v3.22.5 macOS 安装包](https://github.com/bincode-model/ai-coding/releases/download/v3.22.5/AI-Coding-v3.22.5-macOS-aarch64.dmg)
 
 打开 `.dmg` 文件，把 **AI Coding** 拖进「应用程序」文件夹即可。
 
@@ -89,6 +90,13 @@ AI Coding 不是普通聊天壳，而是给 AI 编程用户准备的桌面控制
 ```bash
 xattr -cr "/Applications/AI Coding.app"
 ```
+
+### Windows（64 位）
+
+- [下载 EXE 安装包](https://github.com/bincode-model/ai-coding/releases/download/v3.22.5/AI-Coding-v3.22.5-windows-x64-setup.exe)：日常安装推荐。
+- [下载 MSI 安装包](https://github.com/bincode-model/ai-coding/releases/download/v3.22.5/AI-Coding-v3.22.5-windows-x64.msi)：Windows Installer 格式。
+
+适用于 Windows 10/11 x64。应用需要 Microsoft Edge WebView2；安装包包含引导程序，缺少运行环境时可能联网下载。安装包未使用商业代码签名证书，系统可能显示“未知发布者”或 SmartScreen 提示。安装包和 SHA-256 校验文件见 [v3.22.5 发布页](https://github.com/bincode-model/ai-coding/releases/tag/v3.22.5)。Windows 上恢复会话会给出对应 CLI 的命令，需要在终端执行。
 
 ## 本地开发
 

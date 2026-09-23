@@ -1,6 +1,6 @@
 {
   "name": "ai-coding",
-  "version": "3.22.1",
+  "version": "3.22.5",
   "description": "AI Coding - AI CLI 配置管理工具",
   "type": "module",
   "scripts": {

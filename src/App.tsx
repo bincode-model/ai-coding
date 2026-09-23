@@ -28,6 +28,7 @@ import {
   Loader2,
   RefreshCw,
   Share2,
+  PackageCheck,
 } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Provider, VisibleApps } from "@/types";
@@ -1376,6 +1377,20 @@ function App() {
                   className="hover:bg-black/5 dark:hover:bg-white/5"
                 >
                   <Settings className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSettingsDefaultTab("tools");
+                    setCurrentView("settings");
+                  }}
+                  className="gap-1.5 hover:bg-black/5 dark:hover:bg-white/5"
+                >
+                  <PackageCheck className="w-4 h-4" />
+                  {t("settings.checkToolVersions", {
+                    defaultValue: "检查工具版本",
+                  })}
                 </Button>
                 <Button
                   variant="ghost"

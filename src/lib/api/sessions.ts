@@ -25,6 +25,11 @@ export interface ExportSessionMarkdownOptions {
 }
 
 export const sessionsApi = {
+  async prepareResume(
+    options: DeleteSessionOptions,
+  ): Promise<{ command: string; cwd?: string | null }> {
+    return await invoke("prepare_session_resume", { ...options });
+  },
   async list(): Promise<SessionMeta[]> {
     return await invoke("list_sessions");
   },
@@ -54,14 +59,20 @@ export const sessionsApi = {
     query: string,
     mode: SessionSearchMode,
     limit = 200,
+    requestId?: string,
   ): Promise<SessionSearchHit[]> {
     const result = await invoke<SessionSearchHit[]>("search_session_contents", {
       items,
       query,
       mode,
       limit,
+      requestId,
     });
     return result ?? [];
+  },
+
+  async cancelSearch(requestId: string): Promise<void> {
+    await invoke("cancel_session_search", { requestId });
   },
 
   async delete(options: DeleteSessionOptions): Promise<boolean> {

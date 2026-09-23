@@ -3,33 +3,28 @@ import { sessionsApi } from "@/lib/api/sessions";
 import type { SessionMeta, SessionSearchHit, SessionSearchMode } from "@/types";
 import { getSessionKey } from "@/components/sessions/utils";
 
-/** 输入停止多久后才发起正文检索（毫秒）。 */
 const DEBOUNCE_MS = 300;
+let nextSearchId = 0;
 
 interface UseSessionContentSearchOptions {
-  /** 已按 provider 过滤后的会话列表。 */
   sessions: SessionMeta[];
   query: string;
   mode: SessionSearchMode;
+  /** Explicit manual refresh, not every background list fetch. */
+  refreshVersion?: number;
 }
 
 interface UseSessionContentSearchResult {
-  /** sessionKey → 命中信息（含片段） */
   hits: Map<string, SessionSearchHit>;
   isSearching: boolean;
   error: string | null;
 }
 
-/**
- * 会话正文全文检索。
- *
- * 元数据搜索只覆盖标题 / 摘要 / 目录等列表信息。本 hook 在输入稳定
- * 300ms 后把当前会话集合交给后端检索完整聊天正文，并将命中合并回列表。
- */
 export function useSessionContentSearch({
   sessions,
   query,
   mode,
+  refreshVersion = 0,
 }: UseSessionContentSearchOptions): UseSessionContentSearchResult {
   const [hits, setHits] = useState<Map<string, SessionSearchHit>>(
     () => new Map(),
@@ -37,78 +32,154 @@ export function useSessionContentSearch({
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestSeq = useRef(0);
-
+  const [completedRun, setCompletedRun] = useState(0);
+  const active = useRef<{
+    id: string;
+    context: string;
+    refreshVersion: number;
+  } | null>(null);
+  useEffect(
+    () => () => {
+      requestSeq.current += 1;
+      if (active.current)
+        void sessionsApi.cancelSearch(active.current.id).catch(() => undefined);
+      active.current = null;
+    },
+    [],
+  );
+  const completed = useRef({
+    context: "",
+    refreshVersion,
+    revisions: new Map<string, string>(),
+    hits: new Map<string, SessionSearchHit>(),
+  });
   const needle = query.trim();
-
-  // 只在会话集合的「身份」变化时重新检索，避免列表刷新导致的无意义重查。
   const identity = useMemo(
     () =>
-      sessions
-        .map((session) => getSessionKey(session))
-        .sort()
-        .join("|"),
+      JSON.stringify(
+        sessions
+          .map((session) => [
+            getSessionKey(session),
+            session.lastActiveAt ?? 0,
+            session.summary ?? "",
+          ])
+          .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+      ),
     [sessions],
   );
 
   useEffect(() => {
-    if (!needle) {
-      requestSeq.current += 1;
-      setHits(new Map());
-      setIsSearching(false);
-      setError(null);
-      return;
-    }
-
-    const seq = ++requestSeq.current;
-    const items = sessions
+    const context = JSON.stringify([needle, mode]);
+    const entries = sessions
       .filter((session) => Boolean(session.sourcePath))
       .map((session) => ({
-        providerId: session.providerId,
-        sessionId: session.sessionId,
-        sourcePath: session.sourcePath as string,
+        key: getSessionKey(session),
+        revision: JSON.stringify([
+          session.lastActiveAt ?? 0,
+          session.summary ?? "",
+        ]),
+        item: {
+          providerId: session.providerId,
+          sessionId: session.sessionId,
+          sourcePath: session.sourcePath!,
+        },
       }));
+    const activeContext = JSON.stringify([
+      needle,
+      mode,
+      [...new Set(entries.map((entry) => entry.item.providerId))].sort(),
+    ]);
+    if (active.current) {
+      if (
+        active.current.context === activeContext &&
+        active.current.refreshVersion === refreshVersion
+      ) {
+        // Let a cold full search finish while CLI activity accumulates. Its completion
+        // schedules only the changed records, instead of starving every search.
+        return;
+      }
+      void sessionsApi.cancelSearch(active.current.id).catch(() => undefined);
+      active.current = null;
+      requestSeq.current += 1;
+    }
+    const previous = completed.current;
+    const sameQuery = previous.context === context;
+    const validKeys = new Set(entries.map((entry) => entry.key));
+    const retained = sameQuery
+      ? new Map([...previous.hits].filter(([key]) => validKeys.has(key)))
+      : new Map<string, SessionSearchHit>();
+    const force = !sameQuery || previous.refreshVersion !== refreshVersion;
+    const changed = entries.filter(
+      (entry) => force || previous.revisions.get(entry.key) !== entry.revision,
+    );
+    setError(null);
 
-    if (items.length === 0) {
+    if (!needle || entries.length === 0) {
+      completed.current = {
+        context: "",
+        refreshVersion,
+        revisions: new Map(),
+        hits: new Map(),
+      };
       setHits(new Map());
       setIsSearching(false);
-      setError(null);
       return;
     }
-
-    // 命中只属于当前查询和匹配方式，切换到精准模式时不能继续展示旧模糊结果。
-    setHits(new Map());
+    setHits((current) =>
+      sameQuery &&
+      current.size === retained.size &&
+      [...current].every(([key, hit]) => retained.get(key) === hit)
+        ? current
+        : retained,
+    );
+    if (changed.length === 0) {
+      completed.current = {
+        ...previous,
+        hits: retained,
+        revisions: new Map(entries.map((entry) => [entry.key, entry.revision])),
+      };
+      setIsSearching(false);
+      return;
+    }
     setIsSearching(true);
-    setError(null);
+    const requestId = `session-search-${Date.now()}-${++nextSearchId}`;
+    const seq = ++requestSeq.current;
     const timer = setTimeout(() => {
+      active.current = {
+        id: requestId,
+        context: activeContext,
+        refreshVersion,
+      };
       void (async () => {
         try {
-          // A hit count cannot exceed the number of candidate sessions. Using the
-          // candidate count avoids silently dropping matches after the old 200 cap.
+          const items = changed.map((entry) => entry.item);
           const results = await sessionsApi.searchContents(
             items,
             needle,
             mode,
             items.length,
+            requestId,
           );
           if (seq !== requestSeq.current) return;
-
-          const next = new Map<string, SessionSearchHit>();
+          const next = new Map(retained);
+          changed.forEach((entry) => next.delete(entry.key));
           for (const hit of results) {
-            next.set(
-              getSessionKey({
-                providerId: hit.providerId,
-                sessionId: hit.sessionId,
-                sourcePath: hit.sourcePath,
-              }),
-              hit,
-            );
+            const key = getSessionKey(hit);
+            if (validKeys.has(key)) next.set(key, hit);
           }
+          completed.current = {
+            context,
+            refreshVersion,
+            revisions: new Map(
+              entries.map((entry) => [entry.key, entry.revision]),
+            ),
+            hits: next,
+          };
           setHits(next);
           setError(null);
+          setCompletedRun((value) => value + 1);
         } catch (searchError) {
           if (seq !== requestSeq.current) return;
-          console.warn("session content search unavailable", searchError);
-          setHits(new Map());
           setError(
             searchError instanceof Error
               ? searchError.message
@@ -116,18 +187,18 @@ export function useSessionContentSearch({
           );
         } finally {
           if (seq === requestSeq.current) {
+            active.current = null;
             setIsSearching(false);
           }
         }
       })();
     }, DEBOUNCE_MS);
-
     return () => {
       clearTimeout(timer);
     };
-    // sessions 的内容通过 identity 参与依赖，避免引用变化触发重查
+    // Identity captures only fields affecting original fulltext; renaming is metadata-only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [needle, identity, mode]);
+  }, [needle, identity, mode, refreshVersion, completedRun]);
 
   return { hits, isSearching, error };
 }

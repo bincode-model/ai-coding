@@ -1,8 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useSessionSearch } from "@/hooks/useSessionSearch";
 import { useSessionContentSearch } from "@/hooks/useSessionContentSearch";
 import { useSessionLiveSync } from "@/hooks/useSessionLiveSync";
-import { useSessionOrganizer } from "@/hooks/useSessionOrganizer";
+import {
+  SESSION_NAME_MAX_LENGTH,
+  useSessionOrganizer,
+} from "@/hooks/useSessionOrganizer";
 import { useTranslation } from "react-i18next";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { toast } from "sonner";
@@ -13,6 +23,7 @@ import {
   Copy,
   Download,
   Pin,
+  Pencil,
   RefreshCw,
   Search,
   Play,
@@ -48,7 +59,14 @@ import {
   SelectTrigger,
 } from "@/components/ui/select";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Collapsible,
   CollapsibleContent,
@@ -216,8 +234,25 @@ const filterSetToAllowedValues = (
 export function SessionManagerPage({ appId }: { appId: string }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const { data, isLoading, refetch } = useSessionsQuery();
-  const sessions = data ?? [];
+  const { data, isLoading, refetch, dataUpdatedAt } = useSessionsQuery();
+  const {
+    pinnedKeys,
+    archivedKeys,
+    pinnedOrder,
+    togglePin,
+    toggleArchive,
+    names,
+    rename,
+    removeSessions,
+  } = useSessionOrganizer();
+  const sessions = useMemo(
+    () =>
+      (data ?? []).map((session) => {
+        const name = names[getSessionKey(session)];
+        return name ? { ...session, title: name } : session;
+      }),
+    [data, names],
+  );
   const piSessionDiscovery = useQuery({
     queryKey: piKeys.sessionDiscovery,
     queryFn: () => piApi.getSessionDiscovery(),
@@ -226,6 +261,10 @@ export function SessionManagerPage({ appId }: { appId: string }) {
   });
   const detailRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const listScrollRef = useRef<HTMLDivElement | null>(null);
+  const [renameTarget, setRenameTarget] = useState<SessionMeta | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [contentRefreshVersion, setContentRefreshVersion] = useState(0);
   const [activeMessageIndex, setActiveMessageIndex] = useState<number | null>(
     null,
   );
@@ -242,12 +281,23 @@ export function SessionManagerPage({ appId }: { appId: string }) {
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
   const [searchMode, setSearchMode] = useState<SessionSearchMode>(
     readInitialSessionSearchMode,
   );
-  const [providerFilter, setProviderFilter] = useState<ProviderFilter>(
-    appId as ProviderFilter,
-  );
+  const [providerScope, setProviderScope] = useState({
+    appId,
+    value: appId as ProviderFilter,
+  });
+  // Scope changes synchronously with the app; never render a previous Agent's hits.
+  const providerFilter =
+    providerScope.appId === appId
+      ? providerScope.value
+      : (appId as ProviderFilter);
+  const setProviderFilter = (value: ProviderFilter) =>
+    setProviderScope({ appId, value });
+  const [recentDays, setRecentDays] = useState("all");
+  const [filterNow, setFilterNow] = useState(Date.now);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [listTab, setListTab] = useState<"sessions" | "archived">("sessions");
   const [listViewMode, setListViewMode] = useState<SessionListViewMode>(
@@ -264,17 +314,14 @@ export function SessionManagerPage({ appId }: { appId: string }) {
   >(() => initialGroupExpansionState.expandedDirectoryKeys);
 
   useEffect(() => {
-    setProviderFilter(appId as ProviderFilter);
+    setProviderScope({ appId, value: appId as ProviderFilter });
+    setSelectedKey(null);
+    setListTab("sessions");
+    setSelectedSessionKeys(new Set());
   }, [appId]);
-  const {
-    pinnedKeys,
-    archivedKeys,
-    pinnedOrder,
-    togglePin,
-    toggleArchive,
-    pruneMissing,
-  } = useSessionOrganizer();
-
+  useEffect(() => {
+    setFilterNow(Date.now());
+  }, [dataUpdatedAt, recentDays]);
   // 元数据搜索（标题 / 摘要 / 目录 / 会话来源等）
   const { search: searchSessions } = useSessionSearch({
     sessions,
@@ -296,13 +343,14 @@ export function SessionManagerPage({ appId }: { appId: string }) {
     error: contentSearchError,
   } = useSessionContentSearch({
     sessions: providerScopedSessions,
-    query: search,
+    query: deferredSearch,
     mode: searchMode,
+    refreshVersion: contentRefreshVersion,
   });
 
   const filteredSessions = useMemo(() => {
-    const base = searchSessions(search);
-    if (!search.trim() || contentHits.size === 0) return base;
+    const base = searchSessions(deferredSearch);
+    if (!deferredSearch.trim() || contentHits.size === 0) return base;
     const seen = new Set(base.map((session) => getSessionKey(session)));
     const extra = providerScopedSessions
       .filter((session) => {
@@ -320,14 +368,37 @@ export function SessionManagerPage({ appId }: { appId: string }) {
         return bTs - aTs;
       });
     return [...base, ...extra];
-  }, [searchSessions, search, contentHits, providerScopedSessions]);
+  }, [searchSessions, deferredSearch, contentHits, providerScopedSessions]);
+
+  const recentSessions = useMemo(
+    () =>
+      filteredSessions.filter(
+        (session) =>
+          recentDays === "all" ||
+          (session.lastActiveAt ?? session.createdAt ?? 0) >=
+            filterNow - Number(recentDays) * 24 * 60 * 60 * 1000,
+      ),
+    [filteredSessions, recentDays, filterNow],
+  );
 
   // 按归档状态拆分当前列表，并把置顶会话排到最前
   const visibleSessions = useMemo(() => {
-    const inTab = filteredSessions.filter((session) => {
+    const inTab = recentSessions.filter((session) => {
       const isArchived = archivedKeys.has(getSessionKey(session));
-      return listTab === "archived" ? isArchived : !isArchived;
+      return (
+        Boolean(deferredSearch.trim()) ||
+        (listTab === "archived"
+          ? isArchived
+          : !isArchived || pinnedKeys.has(getSessionKey(session)))
+      );
     });
+    if (recentDays !== "all") {
+      return inTab.sort(
+        (a, b) =>
+          (b.lastActiveAt ?? b.createdAt ?? 0) -
+          (a.lastActiveAt ?? a.createdAt ?? 0),
+      );
+    }
     if (listTab === "archived") return inTab;
     const pinned = inTab.filter((session) =>
       pinnedKeys.has(getSessionKey(session)),
@@ -339,26 +410,40 @@ export function SessionManagerPage({ appId }: { appId: string }) {
       (a, b) => pinnedOrder(getSessionKey(a)) - pinnedOrder(getSessionKey(b)),
     );
     return [...pinned, ...rest];
-  }, [filteredSessions, listTab, pinnedKeys, archivedKeys, pinnedOrder]);
+  }, [
+    recentSessions,
+    listTab,
+    pinnedKeys,
+    archivedKeys,
+    pinnedOrder,
+    deferredSearch,
+    recentDays,
+  ]);
 
   const visiblePinnedCount = useMemo(
     () =>
-      listTab === "sessions"
+      listTab === "sessions" && recentDays === "all"
         ? visibleSessions.filter((session) =>
             pinnedKeys.has(getSessionKey(session)),
           ).length
         : 0,
-    [visibleSessions, listTab, pinnedKeys],
+    [visibleSessions, listTab, pinnedKeys, recentDays],
   );
 
   const archivedCount = useMemo(
     () =>
-      filteredSessions.filter((session) =>
+      recentSessions.filter((session) =>
         archivedKeys.has(getSessionKey(session)),
       ).length,
-    [filteredSessions, archivedKeys],
+    [recentSessions, archivedKeys],
   );
-  const activeCount = filteredSessions.length - archivedCount;
+  const activeCount = deferredSearch.trim()
+    ? recentSessions.length
+    : recentSessions.filter(
+        (session) =>
+          !archivedKeys.has(getSessionKey(session)) ||
+          pinnedKeys.has(getSessionKey(session)),
+      ).length;
 
   // 分类视图：按供应商 / 项目目录分组（基于当前 tab 已过滤出的会话）
   const groupedSessions = useMemo(
@@ -461,11 +546,14 @@ export function SessionManagerPage({ appId }: { appId: string }) {
           defaultValue: "列表",
         });
 
-  const { data: messages = [], isLoading: isLoadingMessages } =
-    useSessionMessagesQuery(
-      selectedSession?.providerId,
-      selectedSession?.sourcePath,
-    );
+  const {
+    data: messages = [],
+    isLoading: isLoadingMessages,
+    error: messagesError,
+  } = useSessionMessagesQuery(
+    selectedSession?.providerId,
+    selectedSession?.sourcePath,
+  );
 
   // 终端里新产生的消息实时同步到当前页面（文件监听事件 + 3 秒 stat 兜底）
   useSessionLiveSync({
@@ -475,7 +563,10 @@ export function SessionManagerPage({ appId }: { appId: string }) {
 
   // 手动刷新：同时刷新列表与当前会话的消息（原来只刷新列表）
   const handleRefresh = useCallback(() => {
-    void refetch();
+    void refetch().then((result) => {
+      if (result.error) toast.error(extractErrorMessage(result.error));
+      else setContentRefreshVersion((version) => version + 1);
+    });
     if (selectedSession?.providerId && selectedSession.sourcePath) {
       void queryClient.invalidateQueries({
         queryKey: [
@@ -503,11 +594,20 @@ export function SessionManagerPage({ appId }: { appId: string }) {
     }
   }, [selectedKey]);
 
-  // 会话数据加载后，清理已删除会话残留的置顶/归档记录
+  // 小列表无需虚拟化；大列表仅挂载视口附近的行，名称/摘要换行后动态测高。
+  const virtualizeList = listViewMode === "flat" && visibleSessions.length > 50;
+  const listVirtualizer = useVirtualizer({
+    count: virtualizeList ? visibleSessions.length : 0,
+    getScrollElement: () => listScrollRef.current,
+    getItemKey: (index) => getSessionKey(visibleSessions[index]),
+    estimateSize: () => 86,
+    overscan: 6,
+    gap: 4,
+    enabled: virtualizeList,
+  });
   useEffect(() => {
-    if (sessions.length === 0) return;
-    pruneMissing(new Set(sessions.map((session) => getSessionKey(session))));
-  }, [sessions, pruneMissing]);
+    if (listScrollRef.current) listScrollRef.current.scrollTop = 0;
+  }, [providerFilter, listTab, recentDays, deferredSearch, listViewMode]);
 
   useEffect(() => {
     const validKeys = new Set(
@@ -649,26 +749,58 @@ export function SessionManagerPage({ appId }: { appId: string }) {
     }
   }, [messages, selectedSession, t]);
 
-  const handleResume = async () => {
-    if (!selectedSession?.resumeCommand) return;
+  const prepareSelectedResume = async () => {
+    if (!selectedSession?.resumeCommand) throw new Error("此会话不支持恢复");
+    if (["codex", "claude"].includes(selectedSession.providerId)) {
+      if (!selectedSession.sourcePath)
+        throw new Error("缺少原始会话文件，无法恢复");
+      return await sessionsApi.prepareResume({
+        providerId: selectedSession.providerId,
+        sessionId: selectedSession.sessionId,
+        sourcePath: selectedSession.sourcePath,
+      });
+    }
+    return {
+      command: selectedSession.resumeCommand,
+      cwd: selectedSession.projectDir,
+    };
+  };
 
-    if (!isMac()) {
+  const handleCopyResume = async () => {
+    try {
+      const prepared = await prepareSelectedResume();
       await handleCopy(
-        selectedSession.resumeCommand,
+        prepared.command,
         t("sessionManager.resumeCommandCopied"),
       );
+    } catch (error) {
+      toast.error(extractErrorMessage(error) || t("sessionManager.openFailed"));
+    }
+  };
+
+  const handleResume = async () => {
+    let prepared;
+    try {
+      prepared = await prepareSelectedResume();
+    } catch (error) {
+      toast.error(extractErrorMessage(error) || t("sessionManager.openFailed"));
+      return;
+    }
+    const { command, cwd } = prepared;
+
+    if (!isMac()) {
+      await handleCopy(command, t("sessionManager.resumeCommandCopied"));
       return;
     }
 
     try {
       await sessionsApi.launchTerminal({
-        command: selectedSession.resumeCommand,
-        cwd: selectedSession.projectDir ?? undefined,
+        command,
+        cwd: cwd ?? undefined,
       });
       toast.success(t("sessionManager.terminalLaunched"));
     } catch (error) {
-      const fallback = selectedSession.resumeCommand;
-      await handleCopy(fallback, t("sessionManager.resumeFallbackCopied"));
+      await handleCopy(command, t("sessionManager.resumeFallbackCopied"));
       toast.error(extractErrorMessage(error) || t("sessionManager.openFailed"));
     }
   };
@@ -692,6 +824,7 @@ export function SessionManagerPage({ appId }: { appId: string }) {
         sessionId: target.sessionId,
         sourcePath: target.sourcePath!,
       });
+      removeSessions(new Set([getSessionKey(target)]));
       setSelectedSessionKeys((current) => {
         const next = new Set(current);
         next.delete(getSessionKey(target));
@@ -723,6 +856,7 @@ export function SessionManagerPage({ appId }: { appId: string }) {
 
       if (deletedKeys.length > 0) {
         const deletedKeySet = new Set(deletedKeys);
+        removeSessions(deletedKeySet);
         queryClient.setQueryData<SessionMeta[]>(["sessions"], (current) =>
           (current ?? []).filter(
             (session) => !deletedKeySet.has(getSessionKey(session)),
@@ -807,6 +941,17 @@ export function SessionManagerPage({ appId }: { appId: string }) {
     },
     [archivedKeys, toggleArchive, t],
   );
+
+  const openRename = (session: SessionMeta) => {
+    setRenameTarget(session);
+    setRenameValue(names[getSessionKey(session)] ?? "");
+  };
+  const renameTooLong = renameValue.trim().length > SESSION_NAME_MAX_LENGTH;
+  const originalRenameSession = renameTarget
+    ? (data?.find(
+        (session) => getSessionKey(session) === getSessionKey(renameTarget),
+      ) ?? renameTarget)
+    : null;
 
   const deletableFilteredSessions = useMemo(
     () => visibleSessions.filter((session) => Boolean(session.sourcePath)),
@@ -963,6 +1108,7 @@ export function SessionManagerPage({ appId }: { appId: string }) {
         onToggleChecked={(checked) => toggleSessionChecked(session, checked)}
         onTogglePin={() => handleTogglePin(session)}
         onToggleArchive={() => handleToggleArchive(session)}
+        onRename={() => openRename(session)}
       />
     );
   };
@@ -1055,6 +1201,95 @@ export function SessionManagerPage({ appId }: { appId: string }) {
     setSelectionMode(false);
     setSelectedSessionKeys(new Set());
   };
+
+  const sessionFilters = (
+    <div className="flex items-center justify-between gap-2">
+      <Select
+        value={providerFilter}
+        onValueChange={(value) => setProviderFilter(value as ProviderFilter)}
+      >
+        <SelectTrigger
+          className="h-7 w-auto gap-1 px-2 text-xs"
+          aria-label={t("sessionManager.providerFilterTooltip", {
+            defaultValue: "供应商筛选",
+          })}
+        >
+          <ProviderIcon
+            icon={
+              providerFilter === "all"
+                ? "apps"
+                : getProviderIconName(providerFilter)
+            }
+            name={providerFilter}
+            size={14}
+          />
+          <span>
+            {providerFilter === "all"
+              ? t("sessionManager.mergedSearch", {
+                  defaultValue: "合并检索所有 Agent",
+                })
+              : getProviderLabel(appId, t)}
+          </span>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={appId}>{getProviderLabel(appId, t)}</SelectItem>
+          <SelectItem value="all">
+            {t("sessionManager.mergedSearch", {
+              defaultValue: "合并检索所有 Agent",
+            })}
+          </SelectItem>
+        </SelectContent>
+      </Select>
+      <Select value={recentDays} onValueChange={setRecentDays}>
+        <SelectTrigger
+          aria-label={t("sessionManager.recentActivity", {
+            defaultValue: "最近活动",
+          })}
+          className="h-7 w-auto gap-2 px-2 text-xs"
+        >
+          <span>
+            {recentDays === "all"
+              ? t("sessionManager.allTime", {
+                  defaultValue: "全部时间",
+                })
+              : recentDays === "1"
+                ? t("sessionManager.last24Hours", {
+                    defaultValue: "最近 24 小时",
+                  })
+                : recentDays === "7"
+                  ? t("sessionManager.last7Days", {
+                      defaultValue: "最近 7 天",
+                    })
+                  : t("sessionManager.last30Days", {
+                      defaultValue: "最近 30 天",
+                    })}
+          </span>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">
+            {t("sessionManager.allTime", {
+              defaultValue: "全部时间",
+            })}
+          </SelectItem>
+          <SelectItem value="1">
+            {t("sessionManager.last24Hours", {
+              defaultValue: "最近 24 小时",
+            })}
+          </SelectItem>
+          <SelectItem value="7">
+            {t("sessionManager.last7Days", {
+              defaultValue: "最近 7 天",
+            })}
+          </SelectItem>
+          <SelectItem value="30">
+            {t("sessionManager.last30Days", {
+              defaultValue: "最近 30 天",
+            })}
+          </SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+  );
 
   return (
     <TooltipProvider>
@@ -1168,6 +1403,17 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                           </SelectItem>
                         </SelectContent>
                       </Select>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-7 shrink-0"
+                        onClick={handleRefresh}
+                        aria-label={t("sessionManager.refreshTooltip", {
+                          defaultValue: "刷新（终端新消息会自动同步）",
+                        })}
+                      >
+                        <RefreshCw className="size-3.5" />
+                      </Button>
                       {selectionMode && (
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -1194,6 +1440,13 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                         </Tooltip>
                       )}
                     </div>
+                    {sessionFilters}
+                    <span className="text-[11px] text-muted-foreground">
+                      {t("sessionManager.searchIncludingArchived", {
+                        defaultValue: "搜索结果（含归档）",
+                      })}{" "}
+                      · {visibleSessions.length}
+                    </span>
                     {search.trim() &&
                       (isSearchingContent || contentSearchError) && (
                         <div
@@ -1382,127 +1635,6 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                           </Tooltip>
                         )}
 
-                        <Select
-                          value={providerFilter}
-                          onValueChange={(value) =>
-                            setProviderFilter(value as ProviderFilter)
-                          }
-                        >
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <SelectTrigger
-                                className="size-7 p-0 justify-center border-0 bg-transparent hover:bg-muted"
-                                aria-label={t(
-                                  "sessionManager.providerFilterTooltip",
-                                  {
-                                    defaultValue: "供应商筛选",
-                                  },
-                                )}
-                              >
-                                <span className="sr-only">
-                                  {t("sessionManager.providerFilterTooltip", {
-                                    defaultValue: "供应商筛选",
-                                  })}
-                                </span>
-                                <ProviderIcon
-                                  icon={
-                                    providerFilter === "all"
-                                      ? "apps"
-                                      : getProviderIconName(providerFilter)
-                                  }
-                                  name={providerFilter}
-                                  size={14}
-                                />
-                              </SelectTrigger>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              {providerFilter === "all"
-                                ? t("sessionManager.providerFilterAll")
-                                : providerFilter}
-                            </TooltipContent>
-                          </Tooltip>
-                          <SelectContent>
-                            <SelectItem value="all">
-                              <div className="flex items-center gap-2">
-                                <ProviderIcon
-                                  icon="apps"
-                                  name="all"
-                                  size={14}
-                                />
-                                <span>
-                                  {t("sessionManager.providerFilterAll")}
-                                </span>
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="codex">
-                              <div className="flex items-center gap-2">
-                                <ProviderIcon
-                                  icon="openai"
-                                  name="codex"
-                                  size={14}
-                                />
-                                <span>Codex</span>
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="grokbuild">
-                              <div className="flex items-center gap-2">
-                                <ProviderIcon
-                                  icon="grok"
-                                  name="grokbuild"
-                                  size={14}
-                                />
-                                <span>Grok Build</span>
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="claude">
-                              <div className="flex items-center gap-2">
-                                <ProviderIcon
-                                  icon="claude"
-                                  name="claude"
-                                  size={14}
-                                />
-                                <span>Claude Code</span>
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="opencode">
-                              <div className="flex items-center gap-2">
-                                <ProviderIcon
-                                  icon="opencode"
-                                  name="opencode"
-                                  size={14}
-                                />
-                                <span>OpenCode</span>
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="openclaw">
-                              <div className="flex items-center gap-2">
-                                <ProviderIcon
-                                  icon="openclaw"
-                                  name="openclaw"
-                                  size={14}
-                                />
-                                <span>OpenClaw</span>
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="gemini">
-                              <div className="flex items-center gap-2">
-                                <ProviderIcon
-                                  icon="gemini"
-                                  name="gemini"
-                                  size={14}
-                                />
-                                <span>Gemini CLI</span>
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="pi">
-                              <div className="flex items-center gap-2">
-                                <ProviderIcon icon="pi" name="pi" size={14} />
-                                <span>Pi</span>
-                              </div>
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
@@ -1510,6 +1642,9 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                               size="icon"
                               className="size-7"
                               onClick={handleRefresh}
+                              aria-label={t("sessionManager.refreshTooltip", {
+                                defaultValue: "刷新（终端新消息会自动同步）",
+                              })}
                             >
                               <RefreshCw className="size-3.5" />
                             </Button>
@@ -1522,6 +1657,7 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                         </Tooltip>
                       </div>
                     </div>
+                    {sessionFilters}
                     {/* 会话 / 归档 切换 */}
                     <div className="flex items-center rounded-lg bg-muted/60 p-0.5">
                       <button
@@ -1535,9 +1671,13 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                         )}
                       >
                         <MessageSquare className="size-3" />
-                        {t("sessionManager.tabSessions", {
-                          defaultValue: "会话",
-                        })}
+                        {search.trim()
+                          ? t("sessionManager.searchIncludingArchived", {
+                              defaultValue: "搜索结果（含归档）",
+                            })
+                          : t("sessionManager.tabSessions", {
+                              defaultValue: "会话",
+                            })}
                         <span className="text-[10px] text-muted-foreground">
                           {activeCount}
                         </span>
@@ -1633,7 +1773,13 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                 )}
               </CardHeader>
               <CardContent className="flex-1 min-h-0 p-0">
-                <ScrollArea className="h-full">
+                <div
+                  ref={listScrollRef}
+                  className="h-full overflow-y-auto"
+                  role="region"
+                  tabIndex={0}
+                  aria-label="会话列表"
+                >
                   <div className="p-2">
                     {isLoading ? (
                       <div className="flex items-center justify-center py-12">
@@ -1819,12 +1965,47 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                         })}
                       </div>
                     ) : (
-                      <div className="space-y-1">
-                        {visibleSessions.map((session, index) => {
+                      <div
+                        className={virtualizeList ? "relative" : "space-y-1"}
+                        style={
+                          virtualizeList
+                            ? { height: listVirtualizer.getTotalSize() }
+                            : undefined
+                        }
+                      >
+                        {(virtualizeList
+                          ? listVirtualizer.getVirtualItems()
+                          : visibleSessions.map((_, index) => ({
+                              index,
+                              key: getSessionKey(visibleSessions[index]),
+                              start: 0,
+                            }))
+                        ).map((row) => {
+                          const { index } = row;
+                          const session = visibleSessions[index];
                           const sessionKey = getSessionKey(session);
 
                           return (
-                            <div key={sessionKey}>
+                            <div
+                              key={sessionKey}
+                              data-index={index}
+                              ref={
+                                virtualizeList
+                                  ? listVirtualizer.measureElement
+                                  : undefined
+                              }
+                              style={
+                                virtualizeList
+                                  ? {
+                                      position: "absolute",
+                                      top: 0,
+                                      left: 0,
+                                      width: "100%",
+                                      transform: `translateY(${row.start}px)`,
+                                    }
+                                  : undefined
+                              }
+                            >
                               {visiblePinnedCount > 0 && index === 0 && (
                                 <div className="flex items-center gap-1 px-2 pb-1 text-[11px] text-muted-foreground">
                                   <Pin className="size-3" />
@@ -1845,7 +2026,7 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                       </div>
                     )}
                   </div>
-                </ScrollArea>
+                </div>
               </CardContent>
             </Card>
 
@@ -1886,6 +2067,17 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                           <h2 className="text-base font-semibold truncate">
                             {formatSessionTitle(selectedSession)}
                           </h2>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-7 shrink-0"
+                            aria-label={t("sessionManager.renameSelected", {
+                              defaultValue: "重命名当前会话",
+                            })}
+                            onClick={() => openRename(selectedSession)}
+                          >
+                            <Pencil className="size-3.5" />
+                          </Button>
                         </div>
 
                         {/* 元信息 */}
@@ -2053,6 +2245,15 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                       </div>
                     </div>
 
+                    {isCodexSession && selectedSession.resumeCommand && (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {t("sessionManager.codexFullHistoryHint", {
+                          defaultValue:
+                            "恢复时加载全部已保存历史；长会话首次打开可能稍慢。",
+                        })}
+                      </p>
+                    )}
+
                     {/* 恢复命令预览 */}
                     {selectedSession.resumeCommand && (
                       <div className="mt-3 flex items-center gap-2">
@@ -2065,12 +2266,10 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                               variant="ghost"
                               size="icon"
                               className="size-7 shrink-0"
-                              onClick={() =>
-                                void handleCopy(
-                                  selectedSession.resumeCommand!,
-                                  t("sessionManager.resumeCommandCopied"),
-                                )
-                              }
+                              onClick={() => void handleCopyResume()}
+                              aria-label={t("sessionManager.copyCommand", {
+                                defaultValue: "复制命令",
+                              })}
                             >
                               <Copy className="size-3.5" />
                             </Button>
@@ -2091,6 +2290,18 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                       {/* 消息列表 */}
                       <div className="flex-1 min-w-0 flex flex-col">
                         <div className="px-4 pt-4 pb-2 min-w-0">
+                          {messagesError && (
+                            <div
+                              role="alert"
+                              className="mb-2 text-sm text-destructive"
+                            >
+                              {t("sessionManager.messagesReadFailed", {
+                                defaultValue:
+                                  "读取会话记录失败：{{error}}。请刷新后重试。",
+                                error: extractErrorMessage(messagesError),
+                              })}
+                            </div>
+                          )}
                           <div className="flex items-center gap-2">
                             <MessageSquare className="size-4 text-muted-foreground" />
                             <span className="text-sm font-medium">
@@ -2129,7 +2340,7 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                                 .getVirtualItems()
                                 .map((virtualRow) => (
                                   <div
-                                    key={virtualRow.key}
+                                    key={`${selectedKey}:${virtualRow.key}`}
                                     data-index={virtualRow.index}
                                     ref={virtualizer.measureElement}
                                     style={{
@@ -2176,6 +2387,91 @@ export function SessionManagerPage({ appId }: { appId: string }) {
           </div>
         </div>
       </div>
+      <Dialog
+        open={Boolean(renameTarget)}
+        onOpenChange={(open) => {
+          if (!open) setRenameTarget(null);
+        }}
+      >
+        <DialogContent>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (
+                renameTarget &&
+                rename(getSessionKey(renameTarget), renameValue)
+              )
+                setRenameTarget(null);
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>
+                {t("sessionManager.rename", { defaultValue: "重命名会话" })}
+              </DialogTitle>
+              <DialogDescription>
+                {t("sessionManager.renameHint", {
+                  defaultValue: "仅修改本地显示名称，留空恢复原名。",
+                })}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 px-6 py-5">
+              <label
+                htmlFor="session-custom-name"
+                className="text-sm font-medium"
+              >
+                {t("sessionManager.customName", { defaultValue: "会话名称" })}
+              </label>
+              <Input
+                id="session-custom-name"
+                value={renameValue}
+                placeholder={
+                  originalRenameSession
+                    ? formatSessionTitle(originalRenameSession)
+                    : ""
+                }
+                onChange={(event) => setRenameValue(event.target.value)}
+                aria-invalid={renameTooLong}
+                aria-describedby={
+                  renameTooLong ? "session-name-error" : "session-name-limit"
+                }
+              />
+              <p
+                id="session-name-limit"
+                className="text-xs text-muted-foreground"
+              >
+                {t("sessionManager.nameLimit", {
+                  defaultValue: "最多 {{count}} 个字符",
+                  count: SESSION_NAME_MAX_LENGTH,
+                })}
+              </p>
+              {renameTooLong && (
+                <p
+                  id="session-name-error"
+                  role="alert"
+                  className="text-sm text-destructive"
+                >
+                  {t("sessionManager.nameTooLong", {
+                    defaultValue: "名称不能超过 {{count}} 个字符",
+                    count: SESSION_NAME_MAX_LENGTH,
+                  })}
+                </p>
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setRenameTarget(null)}
+              >
+                {t("common.cancel", { defaultValue: "取消" })}
+              </Button>
+              <Button type="submit" disabled={renameTooLong}>
+                {t("common.save", { defaultValue: "保存" })}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
       <ConfirmDialog
         isOpen={Boolean(deleteTargets)}
         title={

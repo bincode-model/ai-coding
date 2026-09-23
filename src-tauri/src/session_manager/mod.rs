@@ -1,7 +1,11 @@
 pub mod providers;
+pub mod resume;
 pub mod search;
 pub mod terminal;
 pub mod watcher;
+
+#[cfg(test)]
+mod acceptance_tests;
 
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};

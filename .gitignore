@@ -30,3 +30,28 @@ copilot-api
 CODEBUDDY.md
 .github
 mainWindow.js
+
+# software-delivery-harness:runtime-start
+.harness/backups/
+.harness/release-report.json
+.harness/runs/*
+!.harness/runs/.gitkeep
+.harness/state/collection-manifest.json
+.harness/state/hook-state.json
+.harness/state/latest-run.json
+.harness/state/latest-robot-run.json
+.harness/state/test-executions.json
+.harness/state/evidence.json
+.harness/state/acceptance-results.json
+.harness/state/traceability.json
+.harness/state/subagent-guard/lease.json
+.harness/state/subagent-guard/prestart-lease.json
+.harness/state/subagent-guard/pending/*
+!.harness/state/subagent-guard/pending/.gitkeep
+.harness/state/subagent-guard/prestart/*
+!.harness/state/subagent-guard/prestart/.gitkeep
+.harness/state/subagent-guard/active/*
+!.harness/state/subagent-guard/active/.gitkeep
+.harness/state/subagent-guard/receipts/*
+!.harness/state/subagent-guard/receipts/.gitkeep
+# software-delivery-harness:runtime-end

@@ -1,8 +1,23 @@
 #![allow(non_snake_case)]
 
 use std::path::PathBuf;
+use std::sync::{Arc, OnceLock};
 
 use crate::session_manager;
+
+/// Resolve an original session immediately before resuming it, including its CLI home.
+#[tauri::command]
+pub async fn prepare_session_resume(
+    providerId: String,
+    sessionId: String,
+    sourcePath: String,
+) -> Result<session_manager::resume::PreparedResume, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        session_manager::resume::prepare(&providerId, &sessionId, &sourcePath)
+    })
+    .await
+    .map_err(|e| format!("Failed to prepare session resume: {e}"))?
+}
 
 #[tauri::command]
 pub async fn list_sessions() -> Result<Vec<session_manager::SessionMeta>, String> {
@@ -46,14 +61,33 @@ pub async fn search_session_contents(
     query: String,
     mode: Option<session_manager::search::SessionSearchMode>,
     limit: Option<usize>,
+    requestId: Option<String>,
 ) -> Result<Vec<session_manager::search::SessionSearchHit>, String> {
+    // Register before awaiting the gate: a new keystroke cancels the running
+    // request immediately, and superseded queued requests never start workers.
+    let request = session_manager::search::begin_request(requestId);
+    static SEARCH_GATE: OnceLock<Arc<tokio::sync::Mutex<()>>> = OnceLock::new();
+    let permit = Arc::clone(SEARCH_GATE.get_or_init(|| Arc::new(tokio::sync::Mutex::new(()))))
+        .lock_owned()
+        .await;
+    if request.is_cancelled() {
+        return Err("Session search cancelled".into());
+    }
     let limit = limit.unwrap_or(items.len());
     let mode = mode.unwrap_or_default();
     tauri::async_runtime::spawn_blocking(move || {
-        session_manager::search::search_contents(&items, &query, limit, mode)
+        // Hold the gate inside the blocking task too, even if its IPC waiter
+        // disappears while the provider finishes a synchronous file parse.
+        let _permit = permit;
+        session_manager::search::search_contents_with_request(&items, &query, limit, mode, &request)
     })
     .await
-    .map_err(|e| format!("Failed to search session contents: {e}"))
+    .map_err(|e| format!("Failed to search session contents: {e}"))?
+}
+
+#[tauri::command]
+pub fn cancel_session_search(requestId: String) {
+    session_manager::search::cancel_request(&requestId);
 }
 
 /// 在用户选定的终端里恢复一个会话。

@@ -32,7 +32,8 @@ If you often switch between DeepSeek, Kimi, Zhipu GLM, Qwen/Bailian, SiliconFlow
 - **Chinese and overseas model switching**: providers are organized into Domestic Models, Custom Configuration, and Overseas Models, so users can quickly choose the right route for each AI coding tool.
 - **10 supported AI coding apps**: Claude Code, Claude Desktop, Codex, Gemini CLI, OpenCode, OpenClaw, Hermes, Grok Build, Pi, and bincode. bincode is integrated as an OpenCode-compatible app with its own branding and switch entry.
 - **Cross-tool memory synchronization**: push Claude Code memory from `~/.claude/CLAUDE.md` to Codex, Gemini, Hermes, OpenCode, and OpenClaw with one click.
-- **Session management and Markdown export**: browse local AI coding sessions, search history, copy resume commands, delete sessions, and export the current session as a `.md` file for archiving or sharing.
+- **Session management and Markdown export**: search complete local conversations with exact or fuzzy matching, filter by tool or search all agents, keep pinned and archived sessions, rename sessions, restore them in the matching CLI, and export a conversation as a `.md` file.
+- **CLI version checks**: compare installed CLI versions with their published versions from Settings, including Claude Code, Codex, Gemini CLI, OpenCode, OpenClaw, Hermes, Grok Build, and Pi.
 - **Apple-inspired desktop UI**: dark mode by default, warm Claude-style orange accents, large rounded corners, glass effects, and a macOS Dock-style bottom navigation with hover magnification and app labels.
 - **Unified MCP management**: add, edit, validate, import, and sync MCP servers across multiple coding apps instead of maintaining separate config files manually.
 - **Unified Skills management**: install, import, export, update, discover, and sync Skills. AI Coding can use the unified `~/.agents/skills` layout for cleaner cross-tool skill sharing.
@@ -76,7 +77,7 @@ This repository is prepared as an open-source build for self-hosting, learning, 
 
 Download the current Apple Silicon build:
 
-[Download AI Coding v3.22.1 for macOS Apple Silicon](https://github.com/bincode-model/ai-coding/releases/download/v3.22.1/AI-Coding-v3.22.1-macOS-aarch64.dmg)
+[Download AI Coding v3.22.5 for macOS Apple Silicon](https://github.com/bincode-model/ai-coding/releases/download/v3.22.5/AI-Coding-v3.22.5-macOS-aarch64.dmg)
 
 Open the `.dmg` file, then drag **AI Coding** into the Applications folder.
 
@@ -91,7 +92,7 @@ The app is not notarized with Apple yet, so Gatekeeper may block the first launc
 xattr -cr "/Applications/AI Coding.app"
 ```
 
-> All installers and SHA-256 checksums are available on the [v3.22.1 release page](https://github.com/bincode-model/ai-coding/releases/tag/v3.22.1). The repository also keeps the Mac `.dmg` under `downloads/`.
+> All installers and SHA-256 checksums are available on the [v3.22.5 release page](https://github.com/bincode-model/ai-coding/releases/tag/v3.22.5). The repository also keeps the Mac `.dmg` under `downloads/`.
 
 The macOS build output is usually located at:
 
@@ -102,8 +103,8 @@ src-tauri/target/release/bundle/dmg/
 
 ### Windows (64-bit)
 
-- [Download EXE installer](https://github.com/bincode-model/ai-coding/releases/download/v3.22.1/AI-Coding-v3.22.1-windows-x64-setup.exe) — recommended for normal installation.
-- [Download MSI installer](https://github.com/bincode-model/ai-coding/releases/download/v3.22.1/AI-Coding-v3.22.1-windows-x64.msi) — alternative Windows Installer package.
+- [Download EXE installer](https://github.com/bincode-model/ai-coding/releases/download/v3.22.5/AI-Coding-v3.22.5-windows-x64-setup.exe) — recommended for normal installation.
+- [Download MSI installer](https://github.com/bincode-model/ai-coding/releases/download/v3.22.5/AI-Coding-v3.22.5-windows-x64.msi) — alternative Windows Installer package.
 
 Use either installer on Windows 10/11 x64. Both install for the current user. The EXE installer offers Simplified Chinese and English. Microsoft Edge WebView2 is required; the installer includes its bootstrapper and may need an Internet connection if the runtime is missing.
 

@@ -51,6 +51,7 @@ import { UsageDashboard } from "@/components/usage/UsageDashboard";
 import { LogConfigPanel } from "@/components/settings/LogConfigPanel";
 import { AuthCenterPanel } from "@/components/settings/AuthCenterPanel";
 import { CodexAuthSettings } from "@/components/settings/CodexAuthSettings";
+import { ToolVersionsSection } from "@/components/settings/ToolVersionsSection";
 import { useInstalledSkills } from "@/hooks/useSkills";
 import { useSettings } from "@/hooks/useSettings";
 import { useImportExport } from "@/hooks/useImportExport";
@@ -105,7 +106,9 @@ export function SettingsPage({
 
   const { data: installedSkills } = useInstalledSkills();
 
-  const [activeTab, setActiveTab] = useState<string>("general");
+  const [activeTab, setActiveTab] = useState<string>(
+    defaultTab === "about" ? "usage" : defaultTab,
+  );
   const [showRestartPrompt, setShowRestartPrompt] = useState(false);
   const tabScrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -222,7 +225,7 @@ export function SettingsPage({
           onValueChange={setActiveTab}
           className="flex flex-col h-full"
         >
-          <TabsList className="grid w-full grid-cols-5 mb-6 glass rounded-lg">
+          <TabsList className="grid h-auto w-full grid-cols-3 sm:grid-cols-6 mb-6 glass rounded-lg">
             <TabsTrigger value="general">
               {t("settings.tabGeneral")}
             </TabsTrigger>
@@ -234,6 +237,9 @@ export function SettingsPage({
               {t("settings.tabAdvanced")}
             </TabsTrigger>
             <TabsTrigger value="usage">{t("usage.title")}</TabsTrigger>
+            <TabsTrigger value="tools">
+              {t("settings.tabToolVersions", { defaultValue: "工具版本" })}
+            </TabsTrigger>
           </TabsList>
 
           <div className="flex-1 min-h-0 flex flex-col">
@@ -241,6 +247,9 @@ export function SettingsPage({
               ref={tabScrollContainerRef}
               className="flex-1 overflow-y-auto overflow-x-hidden pr-2"
             >
+              <TabsContent value="tools" className="space-y-6 mt-0">
+                <ToolVersionsSection />
+              </TabsContent>
               <TabsContent value="general" className="space-y-6 mt-0">
                 {settings ? (
                   <motion.div
