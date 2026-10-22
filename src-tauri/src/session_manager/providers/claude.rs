@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
-use crate::config::get_claude_config_dir;
+use crate::session_manager::claude_roots::{self, ClaudeRoot};
 use crate::session_manager::{SessionMessage, SessionMeta};
 
 use super::utils::{
@@ -15,18 +15,39 @@ use super::utils::{
 const PROVIDER_ID: &str = "claude";
 
 pub fn scan_sessions() -> Vec<SessionMeta> {
-    let root = get_claude_config_dir().join("projects");
-    let mut files = Vec::new();
-    collect_jsonl_files(&root, &mut files);
+    scan_sessions_with_roots(&crate::config::get_home_dir(), &claude_roots::resolve())
+}
+
+pub(crate) fn scan_sessions_with_roots(home: &Path, roots: &[ClaudeRoot]) -> Vec<SessionMeta> {
+    let files = claude_roots::collect_session_files(&claude_roots::paths(roots));
 
     let mut sessions = Vec::new();
     for path in files {
-        if let Some(meta) = parse_session(&path) {
+        if let Some(mut meta) = parse_session(&path) {
+            // The frontend also displays this field as a command preview. It
+            // must use the same route as prepare_session_resume, never a bare
+            // Claude command for an archive or a GG session.
+            meta.resume_command = crate::session_manager::resume::claude_command_for_source(
+                home,
+                &meta.session_id,
+                &path,
+                roots,
+                cfg!(windows),
+            )
+            .ok();
             sessions.push(meta);
         }
     }
 
     sessions
+}
+
+pub(crate) fn load_messages_with_roots(
+    path: &Path,
+    roots: &[PathBuf],
+) -> Result<Vec<SessionMessage>, String> {
+    let path = claude_roots::validate_source(path, roots)?;
+    load_messages(&path)
 }
 
 pub fn load_messages(path: &Path) -> Result<Vec<SessionMessage>, String> {
@@ -248,7 +269,8 @@ pub(crate) fn parse_session(path: &Path) -> Option<SessionMeta> {
         created_at,
         last_active_at,
         source_path: Some(path.to_string_lossy().to_string()),
-        resume_command: Some(format!("claude --resume {session_id}")),
+        // A parser cannot determine the safe launcher without source context.
+        resume_command: None,
     })
 }
 
@@ -265,28 +287,8 @@ fn infer_session_id_from_filename(path: &Path) -> Option<String> {
         .map(|stem| stem.to_string())
 }
 
-fn collect_jsonl_files(root: &Path, files: &mut Vec<PathBuf>) {
-    if !root.exists() {
-        return;
-    }
-
-    let entries = match std::fs::read_dir(root) {
-        Ok(entries) => entries,
-        Err(_) => return,
-    };
-
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            collect_jsonl_files(&path, files);
-        } else if path.extension().and_then(|ext| ext.to_str()) == Some("jsonl") {
-            files.push(path);
-        }
-    }
-}
-
 fn remove_path_if_exists(path: &Path) -> std::io::Result<()> {
-    match std::fs::metadata(path) {
+    match std::fs::symlink_metadata(path) {
         Ok(meta) => {
             if meta.is_dir() {
                 std::fs::remove_dir_all(path)

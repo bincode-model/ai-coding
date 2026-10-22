@@ -460,6 +460,24 @@ fn build_text(provider_id: &str, source_path: &str) -> Option<String> {
 #[cfg(test)]
 static PARSE_COUNTS: OnceLock<Mutex<HashMap<CacheKey, usize>>> = OnceLock::new();
 
+/// Cached text must obey the same current Claude roots as a direct read, even
+/// when a profile changes without changing the old transcript's size or mtime.
+fn source_is_current(item: &SessionRef) -> bool {
+    if item.provider_id != "claude" {
+        return true;
+    }
+    let allowed = super::provider_roots("claude")
+        .ok()
+        .and_then(|roots| {
+            super::claude_roots::validate_source(Path::new(&item.source_path), &roots).ok()
+        })
+        .is_some();
+    if !allowed {
+        evict(&item.source_path);
+    }
+    allowed
+}
+
 /// 共享完整正文，搜索期间不持有全局锁，也不复制整个缓存字符串。
 fn fresh_text(
     item: &SessionRef,
@@ -467,7 +485,7 @@ fn fresh_text(
     mode: SessionSearchMode,
     request: &SearchRequest,
 ) -> Option<Arc<str>> {
-    if request.is_cancelled() {
+    if request.is_cancelled() || !source_is_current(item) {
         return None;
     }
     let is_sqlite = item.source_path.starts_with("sqlite:");
@@ -626,6 +644,9 @@ fn indexed_exact_match(
     needle: &str,
     request: &SearchRequest,
 ) -> Option<Option<(usize, String)>> {
+    if request.is_cancelled() || !source_is_current(item) {
+        return Some(None);
+    }
     let is_sqlite = item.source_path.starts_with("sqlite:");
     let fingerprint = if is_sqlite {
         None
@@ -1594,8 +1615,51 @@ mod tests {
 
     #[test]
     fn cache_does_not_share_content_between_providers_at_the_same_path() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("shared.jsonl");
+        const CHILD_HOME: &str = "AI_CODING_PROVIDER_CACHE_TEST_CHILD_HOME";
+        const CHILD_DONE: &str = "provider-cache-isolated-child-complete";
+        let Some(child_home) = std::env::var_os(CHILD_HOME) else {
+            let dir = tempfile::Builder::new()
+                .prefix("provider-cache-test-")
+                .tempdir()
+                .unwrap();
+            let home = dir.path().canonicalize().unwrap();
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "session_manager::search::tests::cache_does_not_share_content_between_providers_at_the_same_path",
+                    "--nocapture",
+                    "--test-threads=1",
+                ])
+                .env(CHILD_HOME, &home)
+                .env("CC_SWITCH_TEST_HOME", &home)
+                .output()
+                .expect("launch isolated provider-cache regression");
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert!(output.status.success(), "{stdout}\n{stderr}");
+            assert!(
+                stdout.contains(CHILD_DONE),
+                "child assertions did not finish: {stdout}"
+            );
+            return;
+        };
+        // Set the home before process startup so parallel tests and settings
+        // singletons in the parent never observe a temporary global override.
+        let home = std::path::PathBuf::from(
+            std::env::var_os("CC_SWITCH_TEST_HOME").expect("explicit isolated child home"),
+        );
+        assert_eq!(home, std::path::PathBuf::from(child_home));
+        assert!(home.is_absolute() && home.is_dir());
+        assert!(home
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .starts_with("provider-cache-test-"));
+        assert_eq!(crate::config::get_home_dir(), home);
+        assert_eq!(crate::config::get_claude_config_dir(), home.join(".claude"));
+        let path = home.join(".claude/projects/provider-cache/shared.jsonl");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         append_codex_message(&path, "assistant", "Codex 独有回复");
         let mut file = std::fs::OpenOptions::new()
             .append(true)
@@ -1628,6 +1692,164 @@ mod tests {
         assert!(!cache
             .entries
             .contains_key(&("claude".into(), path.to_string_lossy().into())));
+        println!("{CHILD_DONE}");
+    }
+
+    #[test]
+    fn claude_search_rejects_cached_transcripts_after_gg_profile_changes() {
+        const CHILD_HOME: &str = "AI_CODING_GG_PROFILE_CACHE_TEST_CHILD_HOME";
+        const CHILD_DONE: &str = "gg-profile-cache-isolated-child-complete";
+        const SESSION_ID: &str = "01a08128-e54f-7352-98f2-3ac0816362ae";
+        const CONTENT: &str = "synthetic profile cache needle";
+        let Some(child_home) = std::env::var_os(CHILD_HOME) else {
+            let dir = tempfile::Builder::new()
+                .prefix("gg-profile-cache-test-")
+                .tempdir()
+                .unwrap();
+            let home = dir.path().canonicalize().unwrap();
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "session_manager::search::tests::claude_search_rejects_cached_transcripts_after_gg_profile_changes",
+                    "--nocapture",
+                    "--test-threads=1",
+                ])
+                .env(CHILD_HOME, &home)
+                .env("CC_SWITCH_TEST_HOME", &home)
+                .output()
+                .expect("launch isolated GG profile-cache regression");
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert!(output.status.success(), "{stdout}\n{stderr}");
+            assert!(
+                stdout.contains(CHILD_DONE),
+                "child assertions did not finish: {stdout}"
+            );
+            return;
+        };
+        // Set the override only on Command, before child startup; never change
+        // the parent's environment or read its real Claude/GG configuration.
+        let home = std::path::PathBuf::from(
+            std::env::var_os("CC_SWITCH_TEST_HOME").expect("explicit isolated child home"),
+        );
+        assert_eq!(home, std::path::PathBuf::from(child_home));
+        assert!(home.is_absolute() && home.is_dir());
+        assert!(home
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .starts_with("gg-profile-cache-test-"));
+        assert_eq!(crate::config::get_home_dir(), home);
+        assert_eq!(crate::config::get_claude_config_dir(), home.join(".claude"));
+
+        let profile_a = home.join(".claude-gg-dmit-metered/profile-a");
+        let profile_b = home.join(".claude-gg-dmit-metered/profile-b");
+        let config = home.join(".claude-gg-dmit-metered/config.private.json");
+        let transcript = format!(
+            "{}\n",
+            json!({"type":"assistant","sessionId":SESSION_ID,
+                "message":{"role":"assistant","content":CONTENT}})
+        );
+        // The same UUID and bytes exist in all three roots. Only the selected
+        // profile path changes after these synthetic transcripts are written.
+        let make_session = |profile: &Path| {
+            let path = profile
+                .join("projects/profile-cache")
+                .join(format!("{SESSION_ID}.jsonl"));
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, &transcript).unwrap();
+            SessionRef {
+                provider_id: "claude".into(),
+                session_id: SESSION_ID.into(),
+                source_path: path.to_str().unwrap().into(),
+            }
+        };
+        let legacy = make_session(&home.join(".claude"));
+        let old_a = make_session(&profile_a);
+        let current_b = make_session(&profile_b);
+        let original_bytes = std::fs::read(&old_a.source_path).unwrap();
+        let original_mtime = std::fs::metadata(&old_a.source_path)
+            .unwrap()
+            .modified()
+            .unwrap();
+        let key = (old_a.provider_id.clone(), old_a.source_path.clone());
+        let set_profile = |profile: &Path| {
+            std::fs::write(&config, json!({"profile":profile}).to_string()).unwrap();
+        };
+
+        for disk_only in [false, true] {
+            for (mode, query) in [
+                (SessionSearchMode::Exact, CONTENT),
+                (SessionSearchMode::Fuzzy, "synthetic,profile cache needle"),
+            ] {
+                // Rewarm A through the public search for every mode/storage
+                // case, so an earlier rejection cannot conceal a stale hit.
+                set_profile(&profile_a);
+                let warm = search_contents(std::slice::from_ref(&old_a), query, 0, mode);
+                assert_eq!(warm.len(), 1, "warm A: {mode:?}, disk_only={disk_only}");
+                assert_eq!(warm[0].source_path, old_a.source_path);
+                assert_eq!(warm[0].session_id, SESSION_ID);
+                assert!(warm[0].snippet.contains(CONTENT));
+                assert!(cache().lock().unwrap().entries.contains_key(&key));
+                if disk_only {
+                    // Keep the real disk index; remove only the memory entry.
+                    cache().lock().unwrap().remove(&key);
+                }
+                assert_eq!(
+                    cache().lock().unwrap().entries.contains_key(&key),
+                    !disk_only
+                );
+                {
+                    let index = index().lock().unwrap();
+                    let payload = index.entries[&key]
+                        .file
+                        .as_ref()
+                        .expect("warm A must have a disk payload before the profile switch");
+                    assert!(payload.lock().unwrap().metadata().unwrap().len() > 0);
+                }
+
+                set_profile(&profile_b);
+                assert!(
+                    search_contents(std::slice::from_ref(&old_a), query, 0, mode).is_empty(),
+                    "stale A matched after profile change: {mode:?}, disk_only={disk_only}"
+                );
+                assert!(
+                    !cache().lock().unwrap().entries.contains_key(&key),
+                    "stale memory entry survived: {mode:?}, disk_only={disk_only}"
+                );
+                assert!(
+                    !index().lock().unwrap().entries.contains_key(&key),
+                    "stale index survived: {mode:?}, disk_only={disk_only}"
+                );
+                // Check direct reads after search so they cannot invalidate
+                // caches first and accidentally hide the search regression.
+                assert!(load_messages("claude", &old_a.source_path).is_err());
+                let valid = search_contents(&[legacy.clone(), current_b.clone()], query, 0, mode);
+                assert_eq!(
+                    valid.len(),
+                    2,
+                    "valid roots: {mode:?}, disk_only={disk_only}"
+                );
+                for item in [&legacy, &current_b] {
+                    assert!(valid.iter().any(|hit| {
+                        hit.provider_id == "claude"
+                            && hit.session_id == SESSION_ID
+                            && hit.source_path == item.source_path
+                            && hit.snippet.contains(CONTENT)
+                    }));
+                }
+                assert_eq!(std::fs::read(&old_a.source_path).unwrap(), original_bytes);
+                assert_eq!(
+                    std::fs::metadata(&old_a.source_path)
+                        .unwrap()
+                        .modified()
+                        .unwrap(),
+                    original_mtime
+                );
+            }
+        }
+        println!("{CHILD_DONE}");
     }
 
     #[test]

@@ -1,3 +1,4 @@
+pub(crate) mod claude_roots;
 pub mod providers;
 pub mod resume;
 pub mod search;
@@ -6,6 +7,9 @@ pub mod watcher;
 
 #[cfg(test)]
 mod acceptance_tests;
+
+#[cfg(test)]
+mod claude_dual_roots_tests;
 
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -35,6 +39,21 @@ pub fn session_file_stat(
     }
 
     let roots = provider_roots(provider_id)?;
+    session_file_stat_with_roots(provider_id, path, &roots)
+}
+
+pub(crate) fn session_file_stat_with_roots(
+    provider_id: &str,
+    path: &Path,
+    roots: &[PathBuf],
+) -> Result<Option<SessionFileStat>, String> {
+    if !path.exists() {
+        return Ok(None);
+    }
+    if provider_id == "claude" {
+        let validated = claude_roots::validate_source(path, roots)?;
+        return stat_validated_source(&validated);
+    }
     let validated = canonicalize_existing_path(path, "session source")?;
     let inside = roots.iter().filter(|root| root.exists()).any(|root| {
         canonicalize_existing_path(root, "session root")
@@ -48,7 +67,11 @@ pub fn session_file_stat(
         ));
     }
 
-    let meta = std::fs::metadata(&validated).map_err(|e| e.to_string())?;
+    stat_validated_source(&validated)
+}
+
+fn stat_validated_source(path: &Path) -> Result<Option<SessionFileStat>, String> {
+    let meta = std::fs::metadata(path).map_err(|e| e.to_string())?;
     let mtime_ms = meta
         .modified()
         .ok()
@@ -163,7 +186,7 @@ pub fn load_messages(provider_id: &str, source_path: &str) -> Result<Vec<Session
     let path = Path::new(source_path);
     match provider_id {
         "codex" => codex::load_messages(path),
-        "claude" => claude::load_messages(path),
+        "claude" => claude::load_messages_with_roots(path, &provider_roots("claude")?),
         "opencode" => opencode::load_messages(path),
         "openclaw" => openclaw::load_messages(path),
         "gemini" => gemini::load_messages(path),
@@ -212,7 +235,11 @@ fn delete_session_with_roots(
     source_path: &Path,
     roots: &[PathBuf],
 ) -> Result<bool, String> {
-    let validated_source = canonicalize_existing_path(source_path, "session source")?;
+    let validated_source = if provider_id == "claude" {
+        claude_roots::validate_source(source_path, roots)?
+    } else {
+        canonicalize_existing_path(source_path, "session source")?
+    };
 
     let mut saw_existing_root = false;
     for root in roots {
@@ -262,7 +289,7 @@ fn delete_session_with_roots(
 pub(crate) fn provider_roots(provider_id: &str) -> Result<Vec<PathBuf>, String> {
     let roots = match provider_id {
         "codex" => codex::session_roots(),
-        "claude" => vec![crate::config::get_claude_config_dir().join("projects")],
+        "claude" => claude_roots::paths(&claude_roots::resolve()),
         "opencode" => vec![opencode::get_opencode_data_dir()],
         "openclaw" => vec![crate::openclaw_config::get_openclaw_dir().join("agents")],
         "gemini" => vec![crate::gemini_config::get_gemini_dir().join("tmp")],

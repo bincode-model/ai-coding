@@ -11,12 +11,12 @@
 //!   事件，前端再做一次节流。
 //! - 只关心会话文件：仅 `*.jsonl`，跳过 `agent-*`（子代理转录）以及
 //!   `subagents/`、`tool-results/`、`workflows/` 旁路目录。
-//! - 根目录不存在（对应 CLI 未安装）时不报错，后台每 30 秒重试挂载，
-//!   成功后停止重试。
+//! - 每 30 秒重新核对有限的根目录，缺失目录稍后创建或被替换时重新挂载；
+//!   不递归监听 home，也不设置一小时的重试期限。
 //! - 监听失败只记录日志，绝不影响应用启动。
 
 use std::collections::{HashMap, HashSet};
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
@@ -32,12 +32,8 @@ pub const EVENT_SESSION_CHANGED: &str = "session-manager://changed";
 /// 防抖窗口：合并 400ms 内的多次文件事件。
 const DEBOUNCE_WINDOW: Duration = Duration::from_millis(400);
 
-/// 根目录缺失时的重试间隔与最大次数（约 1 小时）。
+/// 整个应用生命周期内低频核对目录，不轮询历史文件内容。
 const RETRY_INTERVAL: Duration = Duration::from_secs(30);
-const MAX_RETRY_ROUNDS: usize = 120;
-
-/// 会话文件所在的旁路目录，里面的 jsonl 不是用户会话本身。
-const IGNORED_DIR_COMPONENTS: [&str; 3] = ["subagents", "tool-results", "workflows"];
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -52,6 +48,43 @@ pub(crate) struct WatchRoot {
     pub provider_id: String,
     pub path: PathBuf,
     pub canonical: Option<PathBuf>,
+}
+
+#[derive(Default)]
+pub(crate) struct WatchState {
+    pub roots: Vec<WatchRoot>,
+    identities: HashMap<PathBuf, DirectoryIdentity>,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+struct DirectoryIdentity {
+    #[cfg(unix)]
+    device: u64,
+    #[cfg(unix)]
+    inode: u64,
+    #[cfg(not(unix))]
+    created: Option<std::time::SystemTime>,
+}
+
+fn directory_identity(path: &Path) -> Option<DirectoryIdentity> {
+    let metadata = std::fs::metadata(path).ok()?;
+    if !metadata.is_dir() {
+        return None;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        Some(DirectoryIdentity {
+            device: metadata.dev(),
+            inode: metadata.ino(),
+        })
+    }
+    #[cfg(not(unix))]
+    {
+        Some(DirectoryIdentity {
+            created: metadata.created().ok(),
+        })
+    }
 }
 
 static APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
@@ -74,12 +107,24 @@ fn watcher_slot() -> &'static Mutex<Option<RecommendedWatcher>> {
 
 /// 需要监听的根目录：Claude Code 的 projects 与 Codex 的 sessions / archived_sessions。
 fn desired_roots() -> Vec<(String, PathBuf)> {
-    let mut list = vec![(
-        "claude".to_string(),
-        crate::config::get_claude_config_dir().join("projects"),
-    )];
-    for path in super::providers::codex::session_roots() {
-        list.push(("codex".to_string(), path));
+    desired_roots_for_home(
+        &crate::config::get_home_dir(),
+        &crate::config::get_claude_config_dir(),
+        &super::providers::codex::session_roots(),
+    )
+}
+
+pub(crate) fn desired_roots_for_home(
+    home: &Path,
+    configured_claude_dir: &Path,
+    codex_roots: &[PathBuf],
+) -> Vec<(String, PathBuf)> {
+    let mut list: Vec<_> = super::claude_roots::resolve_for_home(home, configured_claude_dir)
+        .into_iter()
+        .map(|root| ("claude".to_string(), root.path))
+        .collect();
+    for path in codex_roots {
+        list.push(("codex".to_string(), path.clone()));
     }
     list
 }
@@ -91,28 +136,41 @@ pub(crate) fn classify_event_path(path: &Path, roots: &[WatchRoot]) -> Option<St
     if path.extension().and_then(|ext| ext.to_str()) != Some("jsonl") {
         return None;
     }
-    let file_name = path.file_name()?.to_str()?;
-    if file_name.starts_with("agent-") {
-        return None;
-    }
-    for component in path.components() {
-        if let Component::Normal(part) = component {
-            if let Some(part) = part.to_str() {
-                if IGNORED_DIR_COMPONENTS.contains(&part) {
-                    return None;
-                }
-            }
-        }
-    }
+    let canonical = super::claude_roots::canonicalize_with_missing(path)?;
     roots
         .iter()
         .find(|root| {
-            path.starts_with(&root.path)
-                || root
-                    .canonical
-                    .as_ref()
-                    .map(|canonical| path.starts_with(canonical))
-                    .unwrap_or(false)
+            root.canonical
+                .clone()
+                .or_else(|| super::claude_roots::canonicalize_with_missing(&root.path))
+                .filter(|_| {
+                    roots.iter().any(|lexical_root| {
+                        lexical_root.provider_id == root.provider_id
+                            && lexical_root
+                                .canonical
+                                .clone()
+                                .or_else(|| {
+                                    super::claude_roots::canonicalize_with_missing(
+                                        &lexical_root.path,
+                                    )
+                                })
+                                .map(|canonical_root| {
+                                    super::claude_roots::lexical_session_path_allowed(
+                                        path,
+                                        &lexical_root.path,
+                                        &canonical_root,
+                                    )
+                                })
+                                .unwrap_or(false)
+                    })
+                })
+                .and_then(|root| {
+                    canonical
+                        .strip_prefix(root)
+                        .ok()
+                        .map(super::claude_roots::is_session_path)
+                })
+                .unwrap_or(false)
         })
         .map(|root| root.provider_id.clone())
 }
@@ -127,35 +185,22 @@ pub fn start(handle: AppHandle) {
     std::thread::Builder::new()
         .name("session-watcher".into())
         .spawn(|| {
-            let mut watched: HashSet<PathBuf> = HashSet::new();
-            for round in 0..=MAX_RETRY_ROUNDS {
-                match watch_missing_roots(&mut watched) {
-                    Ok(0) => {
-                        log::info!("[session-watcher] 已监听 {} 个会话根目录", watched.len());
-                        return;
-                    }
-                    Ok(remaining) => {
-                        if round == 0 {
-                            log::info!(
-                                "[session-watcher] 已监听 {} 个根目录，{} 个尚不存在，稍后重试",
-                                watched.len(),
-                                remaining
-                            );
-                        }
-                    }
+            let mut state = WatchState::default();
+            loop {
+                match watch_missing_roots(&mut state) {
+                    Ok(_) => {}
                     Err(err) => {
                         log::warn!("[session-watcher] 初始化失败，稍后重试: {err}");
                     }
                 }
                 std::thread::sleep(RETRY_INTERVAL);
             }
-            log::warn!("[session-watcher] 部分会话根目录始终不存在，停止重试");
         })
         .ok();
 }
 
 /// 为尚未监听且已存在的根目录挂上 watcher，返回仍不存在的根目录数量。
-fn watch_missing_roots(watched: &mut HashSet<PathBuf>) -> Result<usize, String> {
+fn watch_missing_roots(state: &mut WatchState) -> Result<usize, String> {
     let mut slot = watcher_slot()
         .lock()
         .map_err(|_| "watcher lock poisoned".to_string())?;
@@ -166,47 +211,99 @@ fn watch_missing_roots(watched: &mut HashSet<PathBuf>) -> Result<usize, String> 
                 let Ok(event) = result else { return };
                 handle_event(event);
             },
-            Config::default(),
+            Config::default().with_follow_symlinks(false),
         )
         .map_err(|e| format!("create watcher failed: {e}"))?;
         *slot = Some(watcher);
     }
 
     let watcher = slot.as_mut().expect("watcher just initialised");
-    let mut remaining = 0usize;
+    let (remaining, changed) = sync_watch_roots(watcher, state, &desired_roots());
+    *roots()
+        .lock()
+        .map_err(|_| "roots lock poisoned".to_string())? = state.roots.clone();
+    drop(slot);
 
-    for (provider_id, path) in desired_roots() {
-        if watched.contains(&path) {
-            continue;
+    if !changed.is_empty() {
+        if let Ok(mut map) = pending().lock() {
+            for root in changed {
+                map.entry(root.provider_id).or_default().insert(root.path);
+            }
         }
-        if !path.exists() {
+        // Sessions may already have been written before a formerly missing
+        // directory was attached. A root change must invalidate the list too.
+        schedule_emit();
+    }
+    Ok(remaining)
+}
+
+/// Injectable native watcher reconciliation for isolated-home acceptance tests.
+/// Returns changes as well as missing/failed roots, without creating directories.
+pub(crate) fn sync_watch_roots<W: Watcher>(
+    watcher: &mut W,
+    state: &mut WatchState,
+    desired: &[(String, PathBuf)],
+) -> (usize, Vec<WatchRoot>) {
+    let mut remaining = 0usize;
+    let mut candidates = Vec::new();
+    let mut seen = HashSet::new();
+    for (provider_id, path) in desired {
+        let Some((canonical, identity)) = path
+            .canonicalize()
+            .ok()
+            .and_then(|canonical| directory_identity(&canonical).map(|id| (canonical, id)))
+        else {
             remaining += 1;
             continue;
+        };
+        if seen.insert(canonical.clone()) {
+            candidates.push((
+                WatchRoot {
+                    provider_id: provider_id.clone(),
+                    path: path.clone(),
+                    canonical: Some(canonical),
+                },
+                identity,
+            ));
         }
-        match watcher.watch(&path, RecursiveMode::Recursive) {
+    }
+    let mut changed = Vec::new();
+    state.roots.retain(|old| {
+        let keep = candidates.iter().any(|(new, identity)| {
+            old.path == new.path
+                && old.provider_id == new.provider_id
+                && old.canonical == new.canonical
+                && state.identities.get(&old.path) == Some(identity)
+        });
+        if !keep {
+            let _ = watcher.unwatch(old.canonical.as_deref().unwrap_or(&old.path));
+            state.identities.remove(&old.path);
+            changed.push(old.clone());
+        }
+        keep
+    });
+
+    for (root, identity) in candidates {
+        if state.roots.iter().any(|old| old.path == root.path) {
+            continue;
+        }
+        match watcher.watch(
+            root.canonical.as_deref().unwrap_or(&root.path),
+            RecursiveMode::Recursive,
+        ) {
             Ok(()) => {
-                let canonical = path.canonicalize().ok();
-                if let Ok(mut list) = roots().lock() {
-                    list.push(WatchRoot {
-                        provider_id: provider_id.clone(),
-                        path: path.clone(),
-                        canonical,
-                    });
-                }
-                watched.insert(path.clone());
-                log::info!(
-                    "[session-watcher] 监听 {provider_id} 会话目录: {}",
-                    path.display()
-                );
+                state.identities.insert(root.path.clone(), identity);
+                changed.push(root.clone());
+                state.roots.push(root);
             }
             Err(err) => {
-                log::warn!("[session-watcher] 监听 {} 失败: {err}", path.display());
+                log::warn!("[session-watcher] 监听 {} 失败: {err}", root.path.display());
                 remaining += 1;
             }
         }
     }
 
-    Ok(remaining)
+    (remaining, changed)
 }
 
 fn handle_event(event: Event) {
@@ -225,7 +322,11 @@ fn handle_event(event: Event) {
     for path in event.paths {
         if let Some(provider_id) = classify_event_path(&path, &roots) {
             if let Ok(mut map) = pending().lock() {
-                map.entry(provider_id).or_default().insert(path);
+                let paths = map.entry(provider_id).or_default();
+                if let Some(canonical) = super::claude_roots::canonicalize_with_missing(&path) {
+                    paths.insert(canonical);
+                }
+                paths.insert(path);
                 matched = true;
             }
         }

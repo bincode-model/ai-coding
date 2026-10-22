@@ -3,6 +3,7 @@ use std::path::Path;
 
 use serde::Serialize;
 
+use super::claude_roots::{self, ClaudeRoot, ClaudeSource};
 use super::{canonicalize_existing_path, provider_roots, providers};
 
 #[derive(Debug, Serialize)]
@@ -16,19 +17,145 @@ pub fn prepare(provider: &str, session_id: &str, source: &str) -> Result<Prepare
     if !matches!(provider, "codex" | "claude") {
         return Err(format!("Unsupported resume provider: {provider}"));
     }
-    let roots = provider_roots(provider)?;
-    let prepared = prepare_with_roots(provider, session_id, Path::new(source), &roots)?;
+    if provider == "codex" {
+        return prepare_with_roots(
+            provider,
+            session_id,
+            Path::new(source),
+            &provider_roots(provider)?,
+        );
+    }
+    let home = crate::config::get_home_dir();
+    let prepared = prepare_claude_for_home(
+        &home,
+        &crate::config::get_claude_config_dir(),
+        session_id,
+        Path::new(source),
+    )?;
     #[cfg(not(target_os = "windows"))]
-    if provider == "claude" {
+    if !claude_roots::gg_installed(&home) {
         if let Some(executable) = crate::commands::resolve_session_cli_path("claude")? {
             // Respect launchers that deliberately prohibit direct Claude execution.
             // Do not replace a selected UUID with `--continue` (a different session).
             if is_guarded_claude_launcher(&executable) {
-                return Err(format!("当前 Claude GG 启动器不支持按 ID 一键恢复。请在正常启动的 Claude GG 中使用 /resume {session_id}；目标会话必须位于同一记录目录。这里的完整记录仍可查看。"));
+                return Err("Claude 的直接启动入口已被禁用，且无法确认当前 Claude GG 包装入口；已停止恢复。完整记录仍可查看。".into());
             }
         }
     }
     Ok(prepared)
+}
+
+pub(crate) fn prepare_claude_for_home(
+    home: &Path,
+    configured_dir: &Path,
+    session_id: &str,
+    source: &Path,
+) -> Result<PreparedResume, String> {
+    let roots = claude_roots::resolve_for_home(home, configured_dir);
+    prepare_claude_with_roots(home, session_id, source, &roots)
+}
+
+pub(crate) fn prepare_claude_with_roots(
+    home: &Path,
+    session_id: &str,
+    source: &Path,
+    roots: &[ClaudeRoot],
+) -> Result<PreparedResume, String> {
+    let command = claude_command_for_source(home, session_id, source, roots, cfg!(windows))?;
+    let source = claude_roots::validate_source(source, &claude_roots::paths(roots))?;
+    let meta = providers::claude::parse_session(&source)
+        .ok_or_else(|| "无法读取原会话，请刷新列表后重试".to_string())?;
+    if meta.session_id != session_id {
+        return Err("会话 ID 与原始文件不一致，请刷新列表后重新选择".into());
+    }
+    validate_cwd(meta.project_dir.as_deref())?;
+    Ok(PreparedResume {
+        command,
+        cwd: meta.project_dir,
+    })
+}
+
+/// Used by both the frontend's metadata preview and its prepare/copy/launch
+/// actions. Only the existing GG wrapper may choose its profile and network.
+pub(crate) fn claude_command_for_source(
+    home: &Path,
+    session_id: &str,
+    source: &Path,
+    roots: &[ClaudeRoot],
+    windows: bool,
+) -> Result<String, String> {
+    uuid::Uuid::parse_str(session_id)
+        .map_err(|_| "会话 ID 不是有效 UUID，已停止恢复；请刷新后重新选择".to_string())?;
+    let source = claude_roots::validate_source(source, &claude_roots::paths(roots))?;
+    let root = roots
+        .iter()
+        .filter(|root| {
+            root.path
+                .canonicalize()
+                .map(|root| source.starts_with(root))
+                .unwrap_or(false)
+        })
+        // A nested/aliased GG root must never be routed through ordinary Claude.
+        .max_by_key(|root| {
+            (
+                root.source == ClaudeSource::CurrentGg,
+                root.path.components().count(),
+            )
+        })
+        .ok_or_else(|| "会话文件不属于当前 Claude 记录目录".to_string())?;
+    match root.source {
+        ClaudeSource::CurrentGg => {
+            let wrapper = claude_roots::gg_wrapper(home);
+            if !wrapper_available(&wrapper) {
+                return Err("当前 Claude GG 包装入口不可用，已停止恢复；完整记录仍可查看。".into());
+            }
+            Ok(build_gg_command(&wrapper, session_id, windows))
+        }
+        ClaudeSource::Archive => Err(
+            "这是旧 Claude 历史归档，无法一键恢复到当前 Claude GG；完整记录仍可查看。不会复制历史或切换专线配置。".into(),
+        ),
+        ClaudeSource::Configured if claude_roots::gg_installed(home) => Err(
+            "此记录不在当前 Claude GG 的记录目录，无法通过专线一键恢复；完整记录仍可查看。".into(),
+        ),
+        ClaudeSource::Configured => {
+            let cli_home = root.path.parent().ok_or_else(|| "无法确定 Claude 目录".to_string())?;
+            Ok(build_command("claude", cli_home, session_id, windows))
+        }
+    }
+}
+
+fn wrapper_available(path: &Path) -> bool {
+    let Ok(metadata) = std::fs::symlink_metadata(path) else {
+        return false;
+    };
+    if !metadata.is_file() {
+        return false;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        metadata.permissions().mode() & 0o111 != 0
+    }
+    #[cfg(not(unix))]
+    {
+        true
+    }
+}
+
+pub(crate) fn build_gg_command(wrapper: &Path, session_id: &str, windows: bool) -> String {
+    if windows {
+        format!(
+            "& '{}' --resume '{}'",
+            wrapper.to_string_lossy().replace('\'', "''"),
+            session_id.replace('\'', "''")
+        )
+    } else {
+        format!(
+            "{} --resume {}",
+            super::terminal::shell_escape(&wrapper.to_string_lossy()),
+            super::terminal::shell_escape(session_id)
+        )
+    }
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -41,12 +168,15 @@ fn is_guarded_claude_launcher(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-fn prepare_with_roots(
+pub(crate) fn prepare_with_roots(
     provider: &str,
     session_id: &str,
     source: &Path,
     roots: &[std::path::PathBuf],
 ) -> Result<PreparedResume, String> {
+    if provider != "codex" {
+        return Err("Claude 恢复必须先确认旧历史或当前 GG 来源".into());
+    }
     uuid::Uuid::parse_str(session_id)
         .map_err(|_| "会话 ID 不是有效 UUID，已停止恢复；请刷新后重新选择".to_string())?;
     let source = canonicalize_existing_path(source, "会话原始文件")?;
@@ -61,29 +191,30 @@ fn prepare_with_roots(
                 .unwrap_or(false)
         })
         .ok_or_else(|| "会话文件不属于此 Agent 的记录目录".to_string())?;
-    let meta = match provider {
-        "codex" => providers::codex::parse_session(&source),
-        "claude" => providers::claude::parse_session(&source),
-        _ => None,
-    }
-    .ok_or_else(|| "无法读取原会话，请刷新列表后重试".to_string())?;
+    let meta = providers::codex::parse_session(&source)
+        .ok_or_else(|| "无法读取原会话，请刷新列表后重试".to_string())?;
     if meta.session_id != session_id {
         return Err("会话 ID 与原始文件不一致，请刷新列表后重新选择".into());
     }
     let cli_home = root
         .parent()
         .ok_or_else(|| "无法确定原会话的 CLI 目录".to_string())?;
-    if let Some(cwd) = meta.project_dir.as_deref() {
+    validate_cwd(meta.project_dir.as_deref())?;
+    Ok(PreparedResume {
+        command: build_command(provider, cli_home, session_id, cfg!(windows)),
+        cwd: meta.project_dir,
+    })
+}
+
+fn validate_cwd(cwd: Option<&str>) -> Result<(), String> {
+    if let Some(cwd) = cwd {
         if !Path::new(cwd).is_dir() {
             return Err(format!(
                 "原会话的工作目录已不存在：{cwd}。完整记录仍可在此查看。"
             ));
         }
     }
-    Ok(PreparedResume {
-        command: build_command(provider, cli_home, session_id, cfg!(windows)),
-        cwd: meta.project_dir,
-    })
+    Ok(())
 }
 
 fn build_command(provider: &str, home: &Path, session_id: &str, windows: bool) -> String {
