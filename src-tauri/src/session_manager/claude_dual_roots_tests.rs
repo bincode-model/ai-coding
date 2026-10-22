@@ -1194,7 +1194,19 @@ fn non_gg_configured_claude_and_codex_keep_their_original_resume_behavior() {
         ],
     );
 
-    let codex_home = fixture.home.join("Codex's custom home");
+    // Provider and flag names inside the quoted home are ordinary path data.
+    let codex_home = fixture.home.join("Codex's claude --last custom home");
+    let quoted_codex_home = shell_literal(&codex_home.to_string_lossy(), cfg!(windows));
+    let quoted_id = shell_literal(ID_B, cfg!(windows));
+    let expected_codex = if cfg!(windows) {
+        format!(
+            "$env:CODEX_HOME={quoted_codex_home}; codex resume -c tui.terminal_resize_reflow_max_rows=0 --no-alt-screen -- {quoted_id}"
+        )
+    } else {
+        format!(
+            "env CODEX_HOME={quoted_codex_home} codex resume -c tui.terminal_resize_reflow_max_rows=0 --no-alt-screen -- {quoted_id}"
+        )
+    };
     for name in ["sessions", "archived_sessions"] {
         let root = codex_home.join(name);
         let source = root.join(format!("rollout-{ID_B}.jsonl"));
@@ -1208,10 +1220,7 @@ fn non_gg_configured_claude_and_codex_keep_their_original_resume_behavior() {
             resume::prepare_with_roots("codex", ID_B, &source, std::slice::from_ref(&root))
                 .unwrap();
         assert_eq!(prepared.cwd.as_deref(), fixture.cwd.to_str());
-        assert!(prepared
-            .command
-            .contains("codex resume -c tui.terminal_resize_reflow_max_rows=0 --no-alt-screen --"));
-        assert!(!prepared.command.contains("--last") && !prepared.command.contains("claude"));
+        assert_eq!(prepared.command, expected_codex);
         #[cfg(unix)]
         assert_shell_arguments(
             &prepared.command,
