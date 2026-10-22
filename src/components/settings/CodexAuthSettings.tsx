@@ -6,6 +6,7 @@ import type { SettingsFormState } from "@/hooks/useSettings";
 import { ToggleRow } from "@/components/ui/toggle-row";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { settingsApi } from "@/lib/api";
+import { CodexApprovalCommand } from "@/components/settings/CodexApprovalCommand";
 
 interface CodexAuthSettingsProps {
   settings: SettingsFormState;
@@ -112,6 +113,8 @@ export function CodexAuthSettings({
         checked={settings.unifyCodexSessionHistory ?? false}
         onCheckedChange={handleUnifyHistoryChange}
       />
+
+      <CodexApprovalCommand />
 
       <ConfirmDialog
         isOpen={showEnableConfirm}

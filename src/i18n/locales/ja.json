@@ -904,7 +904,15 @@
       "defaultCostMultiplierRequired": "デフォルト倍率は必須です",
       "defaultCostMultiplierInvalid": "デフォルト倍率の形式が正しくありません"
     },
-    "saveFailedGeneric": "保存に失敗しました。もう一度お試しください"
+    "saveFailedGeneric": "保存に失敗しました。もう一度お試しください",
+    "codexApproval": {
+      "title": "Codex の確認省略コマンド",
+      "description": "コマンドをコピーしてターミナルで一度実行すると、新しい Codex CLI セッションでコマンド承認の確認が表示されなくなります。",
+      "copy": "コマンドをコピー",
+      "copySuccess": "コピーしました。ターミナルに貼り付けて実行してください。",
+      "copyFailed": "コピーできませんでした。コマンドを選択して手動でコピーしてください。",
+      "note": "Codex のユーザー設定の approval_policy のみを変更し、サンドボックスとプロバイダー設定を保持して事前にバックアップします。ログインなどの確認は残る場合があり、プロジェクト設定や起動引数が優先されます。プロバイダー切り替え後に設定が戻った場合は再実行してください。"
+    }
   },
   "apps": {
     "claude": "Claude",

@@ -904,7 +904,15 @@
       "defaultCostMultiplierRequired": "Default multiplier is required",
       "defaultCostMultiplierInvalid": "Invalid multiplier format"
     },
-    "saveFailedGeneric": "Save failed, please try again"
+    "saveFailedGeneric": "Save failed, please try again",
+    "codexApproval": {
+      "title": "Codex global no-approval command",
+      "description": "Copy and run this once in your terminal to stop command-approval prompts in new Codex CLI sessions.",
+      "copy": "Copy command",
+      "copySuccess": "Command copied. Paste it into your terminal to apply it.",
+      "copyFailed": "Copy failed. Select and copy the command manually.",
+      "note": "The command only changes approval_policy in your Codex user config, preserving sandbox and provider settings with a backup. Sign-in and other prompts can still appear; project config or launch flags may override it. Run it again if a provider switch rewrites the config."
+    }
   },
   "apps": {
     "claude": "Claude",

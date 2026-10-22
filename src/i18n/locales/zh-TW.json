@@ -904,7 +904,15 @@
       "defaultCostMultiplierRequired": "預設倍率不能為空",
       "defaultCostMultiplierInvalid": "預設倍率格式不正確"
     },
-    "saveFailedGeneric": "儲存失敗，請重試"
+    "saveFailedGeneric": "儲存失敗，請重試",
+    "codexApproval": {
+      "title": "Codex 全域免確認命令",
+      "description": "複製命令並在終端機執行一次，讓新開啟的 Codex CLI 工作階段不再詢問命令審核。",
+      "copy": "複製命令",
+      "copySuccess": "命令已複製，貼到終端機執行即可",
+      "copyFailed": "複製失敗，請手動選取命令複製",
+      "note": "命令只修改 Codex 使用者設定中的 approval_policy，保留沙箱及供應商設定，並先備份。登入等其他確認仍可能出現；專案設定或啟動參數可能覆蓋它。切換 Codex 供應商後若失效，可再次執行。"
+    }
   },
   "apps": {
     "claude": "Claude",

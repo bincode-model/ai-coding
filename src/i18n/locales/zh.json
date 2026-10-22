@@ -904,7 +904,15 @@
       "defaultCostMultiplierRequired": "默认倍率不能为空",
       "defaultCostMultiplierInvalid": "默认倍率格式不正确"
     },
-    "saveFailedGeneric": "保存失败，请重试"
+    "saveFailedGeneric": "保存失败，请重试",
+    "codexApproval": {
+      "title": "Codex 全局免确认命令",
+      "description": "复制命令并在终端执行一次，让新开的 Codex CLI 会话不再询问命令审批。",
+      "copy": "复制命令",
+      "copySuccess": "命令已复制，粘贴到终端执行即可",
+      "copyFailed": "复制失败，请手动选中命令复制",
+      "note": "命令只修改 Codex 用户配置中的 approval_policy，保留沙箱和供应商设置，并先备份。登录等其他确认仍可能出现；项目配置或启动参数可能覆盖它。切换 Codex 供应商后若失效，可再次执行。"
+    }
   },
   "apps": {
     "claude": "Claude",
