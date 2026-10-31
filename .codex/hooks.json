@@ -1,0 +1,58 @@
+{
+  "description": "Software delivery lifecycle gates for this project.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "python3 /Users/agnet/.agents/skills/software-delivery-harness/scripts/harness_verify.py --repo /Users/agnet/Documents/ChatGPT/ai-coding-gg-resume-fix --strict --json --expected-hook PreToolUse",
+            "commandWindows": "py -3 \"/Users/agnet/.agents/skills/software-delivery-harness/scripts/harness_verify.py\" --repo \"/Users/agnet/Documents/ChatGPT/ai-coding-gg-resume-fix\" --strict --json --expected-hook PreToolUse",
+            "statusMessage": "Checking Agent authorization before spawn",
+            "timeout": 120,
+            "type": "command"
+          }
+        ],
+        "matcher": "^(Agent|spawn_agent|collaborationspawn_agent|collaboration\\.spawn_agent)$"
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "command": "python3 /Users/agnet/.agents/skills/software-delivery-harness/scripts/harness_verify.py --repo /Users/agnet/Documents/ChatGPT/ai-coding-gg-resume-fix --strict --json --expected-hook Stop",
+            "commandWindows": "py -3 \"/Users/agnet/.agents/skills/software-delivery-harness/scripts/harness_verify.py\" --repo \"/Users/agnet/Documents/ChatGPT/ai-coding-gg-resume-fix\" --strict --json --expected-hook Stop",
+            "statusMessage": "Verifying delivery evidence",
+            "timeout": 600,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "command": "python3 /Users/agnet/.agents/skills/software-delivery-harness/scripts/harness_verify.py --repo /Users/agnet/Documents/ChatGPT/ai-coding-gg-resume-fix --strict --json --expected-hook SubagentStart",
+            "commandWindows": "py -3 \"/Users/agnet/.agents/skills/software-delivery-harness/scripts/harness_verify.py\" --repo \"/Users/agnet/Documents/ChatGPT/ai-coding-gg-resume-fix\" --strict --json --expected-hook SubagentStart",
+            "statusMessage": "Capturing authorized subagent baseline",
+            "timeout": 120,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "command": "python3 /Users/agnet/.agents/skills/software-delivery-harness/scripts/harness_verify.py --repo /Users/agnet/Documents/ChatGPT/ai-coding-gg-resume-fix --strict --json --expected-hook SubagentStop",
+            "commandWindows": "py -3 \"/Users/agnet/.agents/skills/software-delivery-harness/scripts/harness_verify.py\" --repo \"/Users/agnet/Documents/ChatGPT/ai-coding-gg-resume-fix\" --strict --json --expected-hook SubagentStop",
+            "statusMessage": "Checking subagent authorization and evidence",
+            "timeout": 120,
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  }
+}
