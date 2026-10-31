@@ -1,0 +1,1057 @@
+{
+  "standard_version": "1.0.0",
+  "traceability": [
+    {
+      "trace_id": "TRACE-HISTORY",
+      "requirement_id": "REQ-HISTORY",
+      "acceptance_criterion_id": "AC-HISTORY",
+      "implementation": {
+        "state": "LINKED",
+        "references": [
+          {
+            "id": "SRC-HISTORY",
+            "path": "src-tauri/src/session_manager/providers/codex.rs",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": null
+      },
+      "frontend": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "backend": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "storage": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "permissions": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "无用户角色及远程授权变更，保持本机权限"
+      },
+      "test_case_ids": [
+        "TC-HISTORY"
+      ],
+      "test_execution_ids": [],
+      "evidence_ids": [],
+      "final_verdict": {
+        "state": "PENDING",
+        "acceptance_result_requirement_id": null,
+        "status": null,
+        "reason": "尚未执行验收"
+      }
+    },
+    {
+      "trace_id": "TRACE-RESUME",
+      "requirement_id": "REQ-RESUME",
+      "acceptance_criterion_id": "AC-RESUME",
+      "implementation": {
+        "state": "LINKED",
+        "references": [
+          {
+            "id": "SRC-RESUME",
+            "path": "src-tauri/src/session_manager/terminal/mod.rs",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": null
+      },
+      "frontend": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "backend": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "storage": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "permissions": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "无用户角色及远程授权变更，保持本机权限"
+      },
+      "test_case_ids": [
+        "TC-RESUME"
+      ],
+      "test_execution_ids": [],
+      "evidence_ids": [],
+      "final_verdict": {
+        "state": "PENDING",
+        "acceptance_result_requirement_id": null,
+        "status": null,
+        "reason": "尚未执行验收"
+      }
+    },
+    {
+      "trace_id": "TRACE-LATEST",
+      "requirement_id": "REQ-LATEST",
+      "acceptance_criterion_id": "AC-LATEST",
+      "implementation": {
+        "state": "LINKED",
+        "references": [
+          {
+            "id": "SRC-LATEST",
+            "path": "src/components/sessions/SessionManagerPage.tsx",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": null
+      },
+      "frontend": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "backend": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "storage": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "permissions": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "无用户角色及远程授权变更，保持本机权限"
+      },
+      "test_case_ids": [
+        "TC-LATEST"
+      ],
+      "test_execution_ids": [],
+      "evidence_ids": [],
+      "final_verdict": {
+        "state": "PENDING",
+        "acceptance_result_requirement_id": null,
+        "status": null,
+        "reason": "尚未执行验收"
+      }
+    },
+    {
+      "trace_id": "TRACE-ARCHIVE",
+      "requirement_id": "REQ-ARCHIVE",
+      "acceptance_criterion_id": "AC-ARCHIVE",
+      "implementation": {
+        "state": "LINKED",
+        "references": [
+          {
+            "id": "SRC-ARCHIVE",
+            "path": "src/components/sessions/SessionManagerPage.tsx",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": null
+      },
+      "frontend": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "backend": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "storage": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "permissions": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "无用户角色及远程授权变更，保持本机权限"
+      },
+      "test_case_ids": [
+        "TC-ARCHIVE"
+      ],
+      "test_execution_ids": [],
+      "evidence_ids": [],
+      "final_verdict": {
+        "state": "PENDING",
+        "acceptance_result_requirement_id": null,
+        "status": null,
+        "reason": "尚未执行验收"
+      }
+    },
+    {
+      "trace_id": "TRACE-EXACT",
+      "requirement_id": "REQ-EXACT",
+      "acceptance_criterion_id": "AC-EXACT",
+      "implementation": {
+        "state": "LINKED",
+        "references": [
+          {
+            "id": "SRC-EXACT",
+            "path": "src/hooks/useSessionContentSearch.ts",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": null
+      },
+      "frontend": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "backend": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "storage": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "permissions": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "无用户角色及远程授权变更，保持本机权限"
+      },
+      "test_case_ids": [
+        "TC-EXACT"
+      ],
+      "test_execution_ids": [],
+      "evidence_ids": [],
+      "final_verdict": {
+        "state": "PENDING",
+        "acceptance_result_requirement_id": null,
+        "status": null,
+        "reason": "尚未执行验收"
+      }
+    },
+    {
+      "trace_id": "TRACE-SCOPE",
+      "requirement_id": "REQ-SCOPE",
+      "acceptance_criterion_id": "AC-SCOPE",
+      "implementation": {
+        "state": "LINKED",
+        "references": [
+          {
+            "id": "SRC-SCOPE",
+            "path": "src/components/sessions/SessionManagerPage.tsx",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": null
+      },
+      "frontend": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "backend": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "storage": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "permissions": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "无用户角色及远程授权变更，保持本机权限"
+      },
+      "test_case_ids": [
+        "TC-SCOPE"
+      ],
+      "test_execution_ids": [],
+      "evidence_ids": [],
+      "final_verdict": {
+        "state": "PENDING",
+        "acceptance_result_requirement_id": null,
+        "status": null,
+        "reason": "尚未执行验收"
+      }
+    },
+    {
+      "trace_id": "TRACE-LOCAL",
+      "requirement_id": "REQ-LOCAL",
+      "acceptance_criterion_id": "AC-LOCAL",
+      "implementation": {
+        "state": "LINKED",
+        "references": [
+          {
+            "id": "SRC-LOCAL",
+            "path": "package.json",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": null
+      },
+      "frontend": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "backend": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "storage": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "permissions": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "无用户角色及远程授权变更，保持本机权限"
+      },
+      "test_case_ids": [
+        "TC-LOCAL"
+      ],
+      "test_execution_ids": [],
+      "evidence_ids": [],
+      "final_verdict": {
+        "state": "PENDING",
+        "acceptance_result_requirement_id": null,
+        "status": null,
+        "reason": "尚未执行验收"
+      }
+    },
+    {
+      "trace_id": "TRACE-PERF",
+      "requirement_id": "REQ-PERF",
+      "acceptance_criterion_id": "AC-PERF",
+      "implementation": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "2026-09-17新增需求待实现"
+      },
+      "frontend": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "backend": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "storage": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "permissions": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "无用户角色及远程授权变更，保持本机权限"
+      },
+      "test_case_ids": [
+        "TC-PERF"
+      ],
+      "test_execution_ids": [],
+      "evidence_ids": [],
+      "final_verdict": {
+        "state": "PENDING",
+        "acceptance_result_requirement_id": null,
+        "status": null,
+        "reason": "尚未执行验收"
+      }
+    },
+    {
+      "trace_id": "TRACE-PIN-ARCHIVE",
+      "requirement_id": "REQ-PIN-ARCHIVE",
+      "acceptance_criterion_id": "AC-PIN-ARCHIVE",
+      "implementation": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "2026-09-17新增需求待实现"
+      },
+      "frontend": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "backend": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "storage": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "permissions": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "无用户角色及远程授权变更，保持本机权限"
+      },
+      "test_case_ids": [
+        "TC-PIN-ARCHIVE"
+      ],
+      "test_execution_ids": [],
+      "evidence_ids": [],
+      "final_verdict": {
+        "state": "PENDING",
+        "acceptance_result_requirement_id": null,
+        "status": null,
+        "reason": "尚未执行验收"
+      }
+    },
+    {
+      "trace_id": "TRACE-RENAME",
+      "requirement_id": "REQ-RENAME",
+      "acceptance_criterion_id": "AC-RENAME",
+      "implementation": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "2026-09-17新增需求待实现"
+      },
+      "frontend": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "backend": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "storage": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "permissions": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "无用户角色及远程授权变更，保持本机权限"
+      },
+      "test_case_ids": [
+        "TC-RENAME"
+      ],
+      "test_execution_ids": [],
+      "evidence_ids": [],
+      "final_verdict": {
+        "state": "PENDING",
+        "acceptance_result_requirement_id": null,
+        "status": null,
+        "reason": "尚未执行验收"
+      }
+    },
+    {
+      "trace_id": "TRACE-SEARCH-STABILITY",
+      "requirement_id": "REQ-SEARCH-STABILITY",
+      "acceptance_criterion_id": "AC-SEARCH-STABILITY",
+      "implementation": {
+        "state": "PENDING",
+        "references": [
+          {
+            "id": "SRC-SEARCH-STABILITY",
+            "path": "src-tauri/src/session_manager/search.rs",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": "2026-09-17新增需求待实现"
+      },
+      "frontend": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "backend": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "storage": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "实现与执行后链接证据"
+      },
+      "permissions": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "无用户角色及远程授权变更，保持本机权限"
+      },
+      "test_case_ids": [
+        "TC-SEARCH-STABILITY"
+      ],
+      "test_execution_ids": [],
+      "evidence_ids": [],
+      "final_verdict": {
+        "state": "PENDING",
+        "acceptance_result_requirement_id": null,
+        "status": null,
+        "reason": "尚未执行验收"
+      }
+    },
+    {
+      "trace_id": "TRACE-TOOLCHECK-CATALOG",
+      "requirement_id": "REQ-TOOLCHECK-CATALOG",
+      "acceptance_criterion_id": "AC-TOOLCHECK-CATALOG",
+      "implementation": {
+        "state": "LINKED",
+        "references": [
+          {
+            "id": "SRC-TOOLCHECK-CATALOG",
+            "path": "src-tauri/src/commands/misc.rs",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": null
+      },
+      "frontend": {
+        "state": "LINKED",
+        "references": [
+          {
+            "id": "UI-TOOLCHECK-CATALOG",
+            "path": "src/components/settings/ToolVersionsSection.tsx",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": null
+      },
+      "backend": {
+        "state": "LINKED",
+        "references": [
+          {
+            "id": "API-TOOLCHECK-CATALOG",
+            "path": "src-tauri/src/commands/misc.rs",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": null
+      },
+      "storage": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "Version checks read installation metadata and official HTTP sources; results are ephemeral. No database writes or schema migration."
+      },
+      "permissions": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "无用户角色及远程授权变更，保持本机权限"
+      },
+      "test_case_ids": [
+        "TC-TOOLCHECK-CATALOG"
+      ],
+      "test_execution_ids": [],
+      "evidence_ids": [],
+      "final_verdict": {
+        "state": "PENDING",
+        "acceptance_result_requirement_id": null,
+        "status": null,
+        "reason": "Formal Harness receipt unavailable: protected Hook state missing. Ordinary validation evidence is recorded in validation/tool-versions-20260918; do not promote it to trusted acceptance."
+      }
+    },
+    {
+      "trace_id": "TRACE-TOOLCHECK-LOCAL",
+      "requirement_id": "REQ-TOOLCHECK-LOCAL",
+      "acceptance_criterion_id": "AC-TOOLCHECK-LOCAL",
+      "implementation": {
+        "state": "LINKED",
+        "references": [
+          {
+            "id": "SRC-TOOLCHECK-LOCAL",
+            "path": "src-tauri/src/commands/misc.rs",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": null
+      },
+      "frontend": {
+        "state": "LINKED",
+        "references": [
+          {
+            "id": "UI-TOOLCHECK-LOCAL",
+            "path": "src/components/settings/ToolVersionsSection.tsx",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": null
+      },
+      "backend": {
+        "state": "LINKED",
+        "references": [
+          {
+            "id": "API-TOOLCHECK-LOCAL",
+            "path": "src-tauri/src/commands/misc.rs",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": null
+      },
+      "storage": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "Version checks read installation metadata and official HTTP sources; results are ephemeral. No database writes or schema migration."
+      },
+      "permissions": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "无用户角色及远程授权变更，保持本机权限"
+      },
+      "test_case_ids": [
+        "TC-TOOLCHECK-LOCAL"
+      ],
+      "test_execution_ids": [],
+      "evidence_ids": [],
+      "final_verdict": {
+        "state": "PENDING",
+        "acceptance_result_requirement_id": null,
+        "status": null,
+        "reason": "Formal Harness receipt unavailable: protected Hook state missing. Ordinary validation evidence is recorded in validation/tool-versions-20260918; do not promote it to trusted acceptance."
+      }
+    },
+    {
+      "trace_id": "TRACE-TOOLCHECK-REMOTE",
+      "requirement_id": "REQ-TOOLCHECK-REMOTE",
+      "acceptance_criterion_id": "AC-TOOLCHECK-REMOTE",
+      "implementation": {
+        "state": "LINKED",
+        "references": [
+          {
+            "id": "SRC-TOOLCHECK-REMOTE",
+            "path": "src-tauri/src/commands/misc.rs",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": null
+      },
+      "frontend": {
+        "state": "LINKED",
+        "references": [
+          {
+            "id": "UI-TOOLCHECK-REMOTE",
+            "path": "src/components/settings/ToolVersionsSection.tsx",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": null
+      },
+      "backend": {
+        "state": "LINKED",
+        "references": [
+          {
+            "id": "API-TOOLCHECK-REMOTE",
+            "path": "src-tauri/src/commands/misc.rs",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": null
+      },
+      "storage": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "Version checks read installation metadata and official HTTP sources; results are ephemeral. No database writes or schema migration."
+      },
+      "permissions": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "无用户角色及远程授权变更，保持本机权限"
+      },
+      "test_case_ids": [
+        "TC-TOOLCHECK-REMOTE"
+      ],
+      "test_execution_ids": [],
+      "evidence_ids": [],
+      "final_verdict": {
+        "state": "PENDING",
+        "acceptance_result_requirement_id": null,
+        "status": null,
+        "reason": "Formal Harness receipt unavailable: protected Hook state missing. Ordinary validation evidence is recorded in validation/tool-versions-20260918; do not promote it to trusted acceptance."
+      }
+    },
+    {
+      "trace_id": "TRACE-TOOLCHECK-UI",
+      "requirement_id": "REQ-TOOLCHECK-UI",
+      "acceptance_criterion_id": "AC-TOOLCHECK-UI",
+      "implementation": {
+        "state": "LINKED",
+        "references": [
+          {
+            "id": "SRC-TOOLCHECK-UI",
+            "path": "src/components/settings/ToolVersionsSection.tsx",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": null
+      },
+      "frontend": {
+        "state": "LINKED",
+        "references": [
+          {
+            "id": "UI-TOOLCHECK-UI",
+            "path": "src/components/settings/ToolVersionsSection.tsx",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": null
+      },
+      "backend": {
+        "state": "LINKED",
+        "references": [
+          {
+            "id": "API-TOOLCHECK-UI",
+            "path": "src-tauri/src/commands/misc.rs",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": null
+      },
+      "storage": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "Version checks read installation metadata and official HTTP sources; results are ephemeral. No database writes or schema migration."
+      },
+      "permissions": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "无用户角色及远程授权变更，保持本机权限"
+      },
+      "test_case_ids": [
+        "TC-TOOLCHECK-UI"
+      ],
+      "test_execution_ids": [],
+      "evidence_ids": [],
+      "final_verdict": {
+        "state": "PENDING",
+        "acceptance_result_requirement_id": null,
+        "status": null,
+        "reason": "Formal Harness receipt unavailable: protected Hook state missing. Ordinary validation evidence is recorded in validation/tool-versions-20260918; do not promote it to trusted acceptance."
+      }
+    },
+    {
+      "trace_id": "TRACE-TOOLCHECK-LOCALONLY",
+      "requirement_id": "REQ-TOOLCHECK-LOCALONLY",
+      "acceptance_criterion_id": "AC-TOOLCHECK-LOCALONLY",
+      "implementation": {
+        "state": "LINKED",
+        "references": [
+          {
+            "id": "SRC-TOOLCHECK-LOCALONLY",
+            "path": "validation/tool-versions-20260918",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": null
+      },
+      "frontend": {
+        "state": "LINKED",
+        "references": [
+          {
+            "id": "UI-TOOLCHECK-LOCALONLY",
+            "path": "src/components/settings/ToolVersionsSection.tsx",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": null
+      },
+      "backend": {
+        "state": "LINKED",
+        "references": [
+          {
+            "id": "API-TOOLCHECK-LOCALONLY",
+            "path": "src-tauri/src/commands/misc.rs",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": null
+      },
+      "storage": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "Version checks read installation metadata and official HTTP sources; results are ephemeral. No database writes or schema migration."
+      },
+      "permissions": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "无用户角色及远程授权变更，保持本机权限"
+      },
+      "test_case_ids": [
+        "TC-TOOLCHECK-LOCALONLY"
+      ],
+      "test_execution_ids": [],
+      "evidence_ids": [],
+      "final_verdict": {
+        "state": "PENDING",
+        "acceptance_result_requirement_id": null,
+        "status": null,
+        "reason": "Formal Harness receipt unavailable: protected Hook state missing. Ordinary validation evidence is recorded in validation/tool-versions-20260918; do not promote it to trusted acceptance."
+      }
+    },
+    {
+      "trace_id": "TRACE-CODEX-APPROVAL-COMMAND",
+      "requirement_id": "REQ-CODEX-APPROVAL-COMMAND",
+      "acceptance_criterion_id": "AC-CODEX-APPROVAL-COMMAND",
+      "implementation": {
+        "state": "LINKED",
+        "references": [
+          {
+            "id": "SRC-TRACE-CODEX-APPROVAL-COMMAND",
+            "path": "src/lib/codexApprovalCommands.ts",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": null
+      },
+      "frontend": {
+        "state": "LINKED",
+        "references": [
+          {
+            "id": "UI-TRACE-CODEX-APPROVAL-COMMAND",
+            "path": "src/components/settings/CodexApprovalCommand.tsx",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": null
+      },
+      "backend": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "命令复制与生成在客户端，无应用后端调用"
+      },
+      "storage": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "软件本身不写持久化状态；用户自行执行命令才修改 Codex 配置"
+      },
+      "permissions": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "只复制文本，不提升软件权限"
+      },
+      "test_case_ids": [
+        "TC-CODEX-APPROVAL-COMMAND"
+      ],
+      "test_execution_ids": [],
+      "evidence_ids": [],
+      "final_verdict": {
+        "state": "PENDING",
+        "acceptance_result_requirement_id": null,
+        "status": null,
+        "reason": "本机实现与常规测试已核对；正式 Harness 子 Agent 因全局 Hook state 缺失无法启动，已有旧基线缺陷阻止发布门禁 PASS。"
+      }
+    },
+    {
+      "trace_id": "TRACE-CODEX-APPROVAL-UI",
+      "requirement_id": "REQ-CODEX-APPROVAL-UI",
+      "acceptance_criterion_id": "AC-CODEX-APPROVAL-UI",
+      "implementation": {
+        "state": "LINKED",
+        "references": [
+          {
+            "id": "SRC-TRACE-CODEX-APPROVAL-UI",
+            "path": "src/components/settings/CodexApprovalCommand.tsx",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": null
+      },
+      "frontend": {
+        "state": "LINKED",
+        "references": [
+          {
+            "id": "UI-TRACE-CODEX-APPROVAL-UI",
+            "path": "src/components/settings/CodexApprovalCommand.tsx",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": null
+      },
+      "backend": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "使用现有本地剪贴板工具，不新增后端 API"
+      },
+      "storage": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "复制文本不写软件数据库"
+      },
+      "permissions": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "现有本机设置面板权限不变"
+      },
+      "test_case_ids": [
+        "TC-CODEX-APPROVAL-UI"
+      ],
+      "test_execution_ids": [],
+      "evidence_ids": [],
+      "final_verdict": {
+        "state": "PENDING",
+        "acceptance_result_requirement_id": null,
+        "status": null,
+        "reason": "本机实现与常规测试已核对；正式 Harness 子 Agent 因全局 Hook state 缺失无法启动，已有旧基线缺陷阻止发布门禁 PASS。"
+      }
+    },
+    {
+      "trace_id": "TRACE-CLAUDE-DUAL-ROOTS",
+      "requirement_id": "REQ-CLAUDE-DUAL-ROOTS",
+      "acceptance_criterion_id": "AC-CLAUDE-DUAL-ROOTS",
+      "implementation": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "本次修复待实施和验证"
+      },
+      "frontend": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "不新增前端界面或数据库写入"
+      },
+      "backend": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "本次修复待实施和验证"
+      },
+      "storage": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "本次修复待实施和验证"
+      },
+      "permissions": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "本次修复待实施和验证"
+      },
+      "test_case_ids": [
+        "TC-CLAUDE-DUAL-ROOTS"
+      ],
+      "test_execution_ids": [],
+      "evidence_ids": [],
+      "final_verdict": {
+        "state": "PENDING",
+        "acceptance_result_requirement_id": null,
+        "status": null,
+        "reason": "尚未运行验收"
+      }
+    },
+    {
+      "trace_id": "TRACE-CLAUDE-DUAL-WATCH",
+      "requirement_id": "REQ-CLAUDE-DUAL-WATCH",
+      "acceptance_criterion_id": "AC-CLAUDE-DUAL-WATCH",
+      "implementation": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "本次修复待实施和验证"
+      },
+      "frontend": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "不新增前端界面或数据库写入"
+      },
+      "backend": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "本次修复待实施和验证"
+      },
+      "storage": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "本次修复待实施和验证"
+      },
+      "permissions": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "本次修复待实施和验证"
+      },
+      "test_case_ids": [
+        "TC-CLAUDE-DUAL-WATCH"
+      ],
+      "test_execution_ids": [],
+      "evidence_ids": [],
+      "final_verdict": {
+        "state": "PENDING",
+        "acceptance_result_requirement_id": null,
+        "status": null,
+        "reason": "尚未运行验收"
+      }
+    },
+    {
+      "trace_id": "TRACE-CLAUDE-GG-RESUME",
+      "requirement_id": "REQ-CLAUDE-GG-RESUME",
+      "acceptance_criterion_id": "AC-CLAUDE-GG-RESUME",
+      "implementation": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "本次修复待实施和验证"
+      },
+      "frontend": {
+        "state": "PENDING",
+        "references": [
+          "src/components/sessions/SessionManagerPage.tsx"
+        ],
+        "reason": "独立审查发现复制与终端失败回退遗漏 cwd；本轮补齐三条复制路径并验证正确转义，保留原命令和正常原生启动。"
+      },
+      "backend": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "本次修复待实施和验证"
+      },
+      "storage": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "本次修复待实施和验证"
+      },
+      "permissions": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "本次修复待实施和验证"
+      },
+      "test_case_ids": [
+        "TC-CLAUDE-GG-RESUME"
+      ],
+      "test_execution_ids": [],
+      "evidence_ids": [],
+      "final_verdict": {
+        "state": "PENDING",
+        "acceptance_result_requirement_id": null,
+        "status": null,
+        "reason": "尚未运行验收"
+      }
+    }
+  ]
+}

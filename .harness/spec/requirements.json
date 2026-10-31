@@ -1,0 +1,1003 @@
+{
+  "standard_version": "1.0.0",
+  "requirements": [
+    {
+      "requirement_id": "REQ-SESSIONS",
+      "parent_id": null,
+      "level": 1,
+      "category_path": [
+        "REQ-SESSIONS"
+      ],
+      "node_type": "group",
+      "title": "会话管理修复",
+      "description": "恢复原会话，刷新最新记录，完整且按 Agent 隔离检索",
+      "source": {
+        "type": "user",
+        "reference": "conversation:2026-09-15-session-repair"
+      },
+      "priority": "P0",
+      "criticality": "critical",
+      "actors": [
+        "本机用户"
+      ],
+      "permissions": [],
+      "ui_contract": [],
+      "api_contract": [],
+      "database_contract": [],
+      "file_contract": [],
+      "acceptance_criteria": [],
+      "test_case_ids": [],
+      "dependencies": [],
+      "out_of_scope": [
+        "GitHub 发布须用户后续确认",
+        "无法扩大 CLI 模型本身的上下文窗口，也不伪造已丢失的原始消息"
+      ],
+      "assumptions": [],
+      "created_at": "2026-09-15T05:41:11.146669+00:00",
+      "updated_at": "2026-09-15T05:41:11.146669+00:00"
+    },
+    {
+      "requirement_id": "REQ-HISTORY",
+      "parent_id": "REQ-SESSIONS",
+      "level": 2,
+      "category_path": [
+        "REQ-SESSIONS",
+        "REQ-HISTORY"
+      ],
+      "node_type": "leaf",
+      "title": "完整显示保存的原始对话",
+      "description": "Codex 的 response_item、event_msg 对话及工具内容完整加载，重复镜像只显示一次；Claude 对话不截断。",
+      "source": {
+        "type": "user",
+        "reference": "conversation:2026-09-15-session-repair"
+      },
+      "priority": "P0",
+      "criticality": "critical",
+      "actors": [
+        "本机用户"
+      ],
+      "permissions": [],
+      "ui_contract": [],
+      "api_contract": [],
+      "database_contract": [],
+      "file_contract": [],
+      "acceptance_criteria": [
+        {
+          "criterion_id": "AC-HISTORY",
+          "given": "已有本地会话及必要的隔离测试数据",
+          "when": "完整显示保存的原始对话",
+          "then": "Codex 的 response_item、event_msg 对话及工具内容完整加载，重复镜像只显示一次；Claude 对话不截断。",
+          "criticality": "critical"
+        }
+      ],
+      "test_case_ids": [
+        "TC-HISTORY"
+      ],
+      "dependencies": [],
+      "out_of_scope": [
+        "GitHub 发布须用户后续确认",
+        "无法扩大 CLI 模型本身的上下文窗口，也不伪造已丢失的原始消息"
+      ],
+      "assumptions": [],
+      "created_at": "2026-09-15T05:41:11.146669+00:00",
+      "updated_at": "2026-09-15T05:41:11.146669+00:00"
+    },
+    {
+      "requirement_id": "REQ-RESUME",
+      "parent_id": "REQ-SESSIONS",
+      "level": 2,
+      "category_path": [
+        "REQ-SESSIONS",
+        "REQ-RESUME"
+      ],
+      "node_type": "leaf",
+      "title": "恢复原会话",
+      "description": "恢复使用原会话 ID 和来源目录，不新建或拼接摘要会话；Codex 保留终端滚动历史。",
+      "source": {
+        "type": "user",
+        "reference": "conversation:2026-09-15-session-repair"
+      },
+      "priority": "P0",
+      "criticality": "critical",
+      "actors": [
+        "本机用户"
+      ],
+      "permissions": [],
+      "ui_contract": [],
+      "api_contract": [],
+      "database_contract": [],
+      "file_contract": [],
+      "acceptance_criteria": [
+        {
+          "criterion_id": "AC-RESUME",
+          "given": "已有本地会话及必要的隔离测试数据",
+          "when": "恢复原会话",
+          "then": "恢复使用原会话 ID 和来源目录，不新建或拼接摘要会话；Codex 保留终端滚动历史。",
+          "criticality": "critical"
+        }
+      ],
+      "test_case_ids": [
+        "TC-RESUME"
+      ],
+      "dependencies": [],
+      "out_of_scope": [
+        "GitHub 发布须用户后续确认",
+        "无法扩大 CLI 模型本身的上下文窗口，也不伪造已丢失的原始消息"
+      ],
+      "assumptions": [],
+      "created_at": "2026-09-15T05:41:11.146669+00:00",
+      "updated_at": "2026-09-15T05:41:11.146669+00:00"
+    },
+    {
+      "requirement_id": "REQ-LATEST",
+      "parent_id": "REQ-SESSIONS",
+      "level": 2,
+      "category_path": [
+        "REQ-SESSIONS",
+        "REQ-LATEST"
+      ],
+      "node_type": "leaf",
+      "title": "最新会话刷新筛选",
+      "description": "刷新发现新会话并更新当前消息与搜索；可按最近活动筛选和排序。",
+      "source": {
+        "type": "user",
+        "reference": "conversation:2026-09-15-session-repair"
+      },
+      "priority": "P1",
+      "criticality": "critical",
+      "actors": [
+        "本机用户"
+      ],
+      "permissions": [],
+      "ui_contract": [],
+      "api_contract": [],
+      "database_contract": [],
+      "file_contract": [],
+      "acceptance_criteria": [
+        {
+          "criterion_id": "AC-LATEST",
+          "given": "已有本地会话及必要的隔离测试数据",
+          "when": "最新会话刷新筛选",
+          "then": "刷新发现新会话并更新当前消息与搜索；可按最近活动筛选和排序。",
+          "criticality": "critical"
+        }
+      ],
+      "test_case_ids": [
+        "TC-LATEST"
+      ],
+      "dependencies": [],
+      "out_of_scope": [
+        "GitHub 发布须用户后续确认",
+        "无法扩大 CLI 模型本身的上下文窗口，也不伪造已丢失的原始消息"
+      ],
+      "assumptions": [],
+      "created_at": "2026-09-15T05:41:11.146669+00:00",
+      "updated_at": "2026-09-15T05:41:11.146669+00:00"
+    },
+    {
+      "requirement_id": "REQ-ARCHIVE",
+      "parent_id": "REQ-SESSIONS",
+      "level": 2,
+      "category_path": [
+        "REQ-SESSIONS",
+        "REQ-ARCHIVE"
+      ],
+      "node_type": "leaf",
+      "title": "归档全文搜索",
+      "description": "在当前 Agent 下搜索时包含归档，结果显示归档状态。",
+      "source": {
+        "type": "user",
+        "reference": "conversation:2026-09-15-session-repair"
+      },
+      "priority": "P1",
+      "criticality": "critical",
+      "actors": [
+        "本机用户"
+      ],
+      "permissions": [],
+      "ui_contract": [],
+      "api_contract": [],
+      "database_contract": [],
+      "file_contract": [],
+      "acceptance_criteria": [
+        {
+          "criterion_id": "AC-ARCHIVE",
+          "given": "已有本地会话及必要的隔离测试数据",
+          "when": "归档全文搜索",
+          "then": "在当前 Agent 下搜索时包含归档，结果显示归档状态。",
+          "criticality": "critical"
+        }
+      ],
+      "test_case_ids": [
+        "TC-ARCHIVE"
+      ],
+      "dependencies": [],
+      "out_of_scope": [
+        "GitHub 发布须用户后续确认",
+        "无法扩大 CLI 模型本身的上下文窗口，也不伪造已丢失的原始消息"
+      ],
+      "assumptions": [],
+      "created_at": "2026-09-15T05:41:11.146669+00:00",
+      "updated_at": "2026-09-15T05:41:11.146669+00:00"
+    },
+    {
+      "requirement_id": "REQ-EXACT",
+      "parent_id": "REQ-SESSIONS",
+      "level": 2,
+      "category_path": [
+        "REQ-SESSIONS",
+        "REQ-EXACT"
+      ],
+      "node_type": "leaf",
+      "title": "用户与 AI 正文精准搜索",
+      "description": "完整词句可命中用户和 AI 内容，包括后续写入的新消息；精准模式不返回只有模糊命中的结果。",
+      "source": {
+        "type": "user",
+        "reference": "conversation:2026-09-15-session-repair"
+      },
+      "priority": "P1",
+      "criticality": "critical",
+      "actors": [
+        "本机用户"
+      ],
+      "permissions": [],
+      "ui_contract": [],
+      "api_contract": [],
+      "database_contract": [],
+      "file_contract": [],
+      "acceptance_criteria": [
+        {
+          "criterion_id": "AC-EXACT",
+          "given": "已有本地会话及必要的隔离测试数据",
+          "when": "用户与 AI 正文精准搜索",
+          "then": "完整词句可命中用户和 AI 内容，包括后续写入的新消息；精准模式不返回只有模糊命中的结果。",
+          "criticality": "critical"
+        }
+      ],
+      "test_case_ids": [
+        "TC-EXACT"
+      ],
+      "dependencies": [],
+      "out_of_scope": [
+        "GitHub 发布须用户后续确认",
+        "无法扩大 CLI 模型本身的上下文窗口，也不伪造已丢失的原始消息"
+      ],
+      "assumptions": [],
+      "created_at": "2026-09-15T05:41:11.146669+00:00",
+      "updated_at": "2026-09-15T05:41:11.146669+00:00"
+    },
+    {
+      "requirement_id": "REQ-SCOPE",
+      "parent_id": "REQ-SESSIONS",
+      "level": 2,
+      "category_path": [
+        "REQ-SESSIONS",
+        "REQ-SCOPE"
+      ],
+      "node_type": "leaf",
+      "title": "Agent 默认独立",
+      "description": "切换 Agent 后只检索该 Agent；显式选择合并检索才跨 Agent。",
+      "source": {
+        "type": "user",
+        "reference": "conversation:2026-09-15-session-repair"
+      },
+      "priority": "P1",
+      "criticality": "critical",
+      "actors": [
+        "本机用户"
+      ],
+      "permissions": [],
+      "ui_contract": [],
+      "api_contract": [],
+      "database_contract": [],
+      "file_contract": [],
+      "acceptance_criteria": [
+        {
+          "criterion_id": "AC-SCOPE",
+          "given": "已有本地会话及必要的隔离测试数据",
+          "when": "Agent 默认独立",
+          "then": "切换 Agent 后只检索该 Agent；显式选择合并检索才跨 Agent。",
+          "criticality": "critical"
+        }
+      ],
+      "test_case_ids": [
+        "TC-SCOPE"
+      ],
+      "dependencies": [],
+      "out_of_scope": [
+        "GitHub 发布须用户后续确认",
+        "无法扩大 CLI 模型本身的上下文窗口，也不伪造已丢失的原始消息"
+      ],
+      "assumptions": [],
+      "created_at": "2026-09-15T05:41:11.146669+00:00",
+      "updated_at": "2026-09-15T05:41:11.146669+00:00"
+    },
+    {
+      "requirement_id": "REQ-LOCAL",
+      "parent_id": "REQ-SESSIONS",
+      "level": 2,
+      "category_path": [
+        "REQ-SESSIONS",
+        "REQ-LOCAL"
+      ],
+      "node_type": "leaf",
+      "title": "本地验证等待发布",
+      "description": "修改、测试和安装包留在本地，不 push、发布 Release 或同步 GitHub。",
+      "source": {
+        "type": "user",
+        "reference": "conversation:2026-09-15-session-repair"
+      },
+      "priority": "P1",
+      "criticality": "critical",
+      "actors": [
+        "本机用户"
+      ],
+      "permissions": [],
+      "ui_contract": [],
+      "api_contract": [],
+      "database_contract": [],
+      "file_contract": [],
+      "acceptance_criteria": [
+        {
+          "criterion_id": "AC-LOCAL",
+          "given": "已有本地会话及必要的隔离测试数据",
+          "when": "本地验证等待发布",
+          "then": "修改、测试和安装包留在本地，不 push、发布 Release 或同步 GitHub。",
+          "criticality": "critical"
+        }
+      ],
+      "test_case_ids": [
+        "TC-LOCAL"
+      ],
+      "dependencies": [],
+      "out_of_scope": [
+        "GitHub 发布须用户后续确认",
+        "无法扩大 CLI 模型本身的上下文窗口，也不伪造已丢失的原始消息"
+      ],
+      "assumptions": [],
+      "created_at": "2026-09-15T05:41:11.146669+00:00",
+      "updated_at": "2026-09-15T05:41:11.146669+00:00"
+    },
+    {
+      "requirement_id": "REQ-PERF",
+      "parent_id": "REQ-SESSIONS",
+      "level": 2,
+      "category_path": [
+        "REQ-SESSIONS",
+        "REQ-PERF"
+      ],
+      "node_type": "leaf",
+      "title": "检索性能",
+      "description": "检索仅保留最新请求；旧请求可取消或停止计算，刷新不导致全库反复解析；界面输入和结果滚动保持响应；记录真实只读性能数据。",
+      "source": {
+        "type": "user",
+        "reference": "conversation:2026-09-17-session-followup"
+      },
+      "priority": "P1",
+      "criticality": "critical",
+      "actors": [
+        "本机用户"
+      ],
+      "permissions": [],
+      "ui_contract": [],
+      "api_contract": [],
+      "database_contract": [],
+      "file_contract": [],
+      "acceptance_criteria": [
+        {
+          "criterion_id": "AC-PERF",
+          "given": "本地真实会话和隔离测试数据",
+          "when": "检索性能",
+          "then": "检索仅保留最新请求；旧请求可取消或停止计算，刷新不导致全库反复解析；界面输入和结果滚动保持响应；记录真实只读性能数据。",
+          "criticality": "critical"
+        }
+      ],
+      "test_case_ids": [
+        "TC-PERF"
+      ],
+      "dependencies": [],
+      "out_of_scope": [
+        "GitHub 发布须用户后续确认",
+        "无法扩大 CLI 模型本身的上下文窗口，也不伪造已丢失的原始消息"
+      ],
+      "assumptions": [],
+      "created_at": "2026-09-17T02:52:40.848498+00:00",
+      "updated_at": "2026-09-17T02:52:40.848498+00:00"
+    },
+    {
+      "requirement_id": "REQ-PIN-ARCHIVE",
+      "parent_id": "REQ-SESSIONS",
+      "level": 2,
+      "category_path": [
+        "REQ-SESSIONS",
+        "REQ-PIN-ARCHIVE"
+      ],
+      "node_type": "leaf",
+      "title": "归档与置顶独立",
+      "description": "归档不取消置顶，归档会话也可置顶并在会话主列表置顶区显示，取消置顶不取消归档，刷新和重启保留。",
+      "source": {
+        "type": "user",
+        "reference": "conversation:2026-09-17-session-followup"
+      },
+      "priority": "P1",
+      "criticality": "critical",
+      "actors": [
+        "本机用户"
+      ],
+      "permissions": [],
+      "ui_contract": [],
+      "api_contract": [],
+      "database_contract": [],
+      "file_contract": [],
+      "acceptance_criteria": [
+        {
+          "criterion_id": "AC-PIN-ARCHIVE",
+          "given": "本地真实会话和隔离测试数据",
+          "when": "归档与置顶独立",
+          "then": "归档不取消置顶，归档会话也可置顶并在会话主列表置顶区显示，取消置顶不取消归档，刷新和重启保留。",
+          "criticality": "critical"
+        }
+      ],
+      "test_case_ids": [
+        "TC-PIN-ARCHIVE"
+      ],
+      "dependencies": [],
+      "out_of_scope": [
+        "GitHub 发布须用户后续确认",
+        "无法扩大 CLI 模型本身的上下文窗口，也不伪造已丢失的原始消息"
+      ],
+      "assumptions": [],
+      "created_at": "2026-09-17T02:52:40.848498+00:00",
+      "updated_at": "2026-09-17T02:52:40.848498+00:00"
+    },
+    {
+      "requirement_id": "REQ-RENAME",
+      "parent_id": "REQ-SESSIONS",
+      "level": 2,
+      "category_path": [
+        "REQ-SESSIONS",
+        "REQ-RENAME"
+      ],
+      "node_type": "leaf",
+      "title": "会话自定义命名",
+      "description": "可在会话界面自定义名称、修改或清除恢复原标题；刷新重启保留，检索可命中自定义名称；不得改写原始聊天。",
+      "source": {
+        "type": "user",
+        "reference": "conversation:2026-09-17-session-followup"
+      },
+      "priority": "P1",
+      "criticality": "critical",
+      "actors": [
+        "本机用户"
+      ],
+      "permissions": [],
+      "ui_contract": [],
+      "api_contract": [],
+      "database_contract": [],
+      "file_contract": [],
+      "acceptance_criteria": [
+        {
+          "criterion_id": "AC-RENAME",
+          "given": "本地真实会话和隔离测试数据",
+          "when": "会话自定义命名",
+          "then": "可在会话界面自定义名称、修改或清除恢复原标题；刷新重启保留，检索可命中自定义名称；不得改写原始聊天。",
+          "criticality": "critical"
+        }
+      ],
+      "test_case_ids": [
+        "TC-RENAME"
+      ],
+      "dependencies": [],
+      "out_of_scope": [
+        "GitHub 发布须用户后续确认",
+        "无法扩大 CLI 模型本身的上下文窗口，也不伪造已丢失的原始消息"
+      ],
+      "assumptions": [],
+      "created_at": "2026-09-17T02:52:40.848498+00:00",
+      "updated_at": "2026-09-17T02:52:40.848498+00:00"
+    },
+    {
+      "requirement_id": "REQ-SEARCH-STABILITY",
+      "parent_id": "REQ-SESSIONS",
+      "level": 2,
+      "category_path": [
+        "REQ-SESSIONS",
+        "REQ-SEARCH-STABILITY"
+      ],
+      "node_type": "leaf",
+      "title": "搜索后切换会话保持左右面板",
+      "description": "全文索引同时约束文件句柄数量与字节；超过1000个小会话反复搜索仍能读取会话与数据库，筛选/选择不让界面崩溃或清空；原始聊天只读。",
+      "source": {
+        "type": "user",
+        "reference": "conversation:2026-09-17-session-followup"
+      },
+      "priority": "P1",
+      "criticality": "critical",
+      "actors": [
+        "本机用户"
+      ],
+      "permissions": [],
+      "ui_contract": [],
+      "api_contract": [],
+      "database_contract": [],
+      "file_contract": [],
+      "acceptance_criteria": [
+        {
+          "criterion_id": "AC-SEARCH-STABILITY",
+          "given": "超过1000条会话以及macOS低文件句柄上限",
+          "when": "多次全文搜索、刷新、点击不同结果并缩小列表",
+          "then": "全文索引同时约束文件句柄数量与字节；超过1000个小会话反复搜索仍能读取会话与数据库，筛选/选择不让界面崩溃或清空；原始聊天只读。",
+          "criticality": "critical"
+        }
+      ],
+      "test_case_ids": [
+        "TC-SEARCH-STABILITY"
+      ],
+      "dependencies": [],
+      "out_of_scope": [
+        "GitHub 发布须用户后续确认",
+        "无法扩大 CLI 模型本身的上下文窗口，也不伪造已丢失的原始消息"
+      ],
+      "assumptions": [],
+      "created_at": "2026-09-17T03:55:45.267467+00:00",
+      "updated_at": "2026-09-17T03:55:45.267467+00:00"
+    },
+    {
+      "requirement_id": "REQ-TOOLCHECK-CATALOG",
+      "parent_id": "REQ-SESSIONS",
+      "level": 2,
+      "category_path": [
+        "REQ-SESSIONS",
+        "REQ-TOOLCHECK-CATALOG"
+      ],
+      "node_type": "leaf",
+      "title": "All integrated tools",
+      "description": "Cover all eight CLIs plus explicit Claude Desktop and BinCode capability rows. No silent omission.",
+      "source": {
+        "type": "user",
+        "reference": "conversation:2026-09-18-tool-versions"
+      },
+      "priority": "P1",
+      "criticality": "critical",
+      "actors": [
+        "本机用户"
+      ],
+      "permissions": [],
+      "ui_contract": [],
+      "api_contract": [],
+      "database_contract": [],
+      "file_contract": [],
+      "acceptance_criteria": [
+        {
+          "criterion_id": "AC-TOOLCHECK-CATALOG",
+          "given": "Installed app and isolated test fixtures",
+          "when": "All integrated tools",
+          "then": "Cover all eight CLIs plus explicit Claude Desktop and BinCode capability rows. No silent omission.",
+          "criticality": "critical"
+        }
+      ],
+      "test_case_ids": [
+        "TC-TOOLCHECK-CATALOG"
+      ],
+      "dependencies": [],
+      "out_of_scope": [
+        "GitHub 发布须用户后续确认",
+        "无法扩大 CLI 模型本身的上下文窗口，也不伪造已丢失的原始消息"
+      ],
+      "assumptions": [],
+      "created_at": "2026-09-17T17:16:10.770165+00:00",
+      "updated_at": "2026-09-17T17:16:10.770165+00:00"
+    },
+    {
+      "requirement_id": "REQ-TOOLCHECK-LOCAL",
+      "parent_id": "REQ-SESSIONS",
+      "level": 2,
+      "category_path": [
+        "REQ-SESSIONS",
+        "REQ-TOOLCHECK-LOCAL"
+      ],
+      "node_type": "leaf",
+      "title": "Read-only local detection",
+      "description": "Bounded command timeout, process cleanup and concurrency; respect Claude GG guard and distinguish blocked from missing.",
+      "source": {
+        "type": "user",
+        "reference": "conversation:2026-09-18-tool-versions"
+      },
+      "priority": "P1",
+      "criticality": "critical",
+      "actors": [
+        "本机用户"
+      ],
+      "permissions": [],
+      "ui_contract": [],
+      "api_contract": [],
+      "database_contract": [],
+      "file_contract": [],
+      "acceptance_criteria": [
+        {
+          "criterion_id": "AC-TOOLCHECK-LOCAL",
+          "given": "Installed app and isolated test fixtures",
+          "when": "Read-only local detection",
+          "then": "Bounded command timeout, process cleanup and concurrency; respect Claude GG guard and distinguish blocked from missing.",
+          "criticality": "critical"
+        }
+      ],
+      "test_case_ids": [
+        "TC-TOOLCHECK-LOCAL"
+      ],
+      "dependencies": [],
+      "out_of_scope": [
+        "GitHub 发布须用户后续确认",
+        "无法扩大 CLI 模型本身的上下文窗口，也不伪造已丢失的原始消息"
+      ],
+      "assumptions": [],
+      "created_at": "2026-09-17T17:16:10.770165+00:00",
+      "updated_at": "2026-09-17T17:16:10.770165+00:00"
+    },
+    {
+      "requirement_id": "REQ-TOOLCHECK-REMOTE",
+      "parent_id": "REQ-SESSIONS",
+      "level": 2,
+      "category_path": [
+        "REQ-SESSIONS",
+        "REQ-TOOLCHECK-REMOTE"
+      ],
+      "node_type": "leaf",
+      "title": "Official latest versions",
+      "description": "Use official registries/releases; unknown, invalid and failed requests must never show up-to-date; do not install or update tools.",
+      "source": {
+        "type": "user",
+        "reference": "conversation:2026-09-18-tool-versions"
+      },
+      "priority": "P1",
+      "criticality": "critical",
+      "actors": [
+        "本机用户"
+      ],
+      "permissions": [],
+      "ui_contract": [],
+      "api_contract": [],
+      "database_contract": [],
+      "file_contract": [],
+      "acceptance_criteria": [
+        {
+          "criterion_id": "AC-TOOLCHECK-REMOTE",
+          "given": "Installed app and isolated test fixtures",
+          "when": "Official latest versions",
+          "then": "Use official registries/releases; unknown, invalid and failed requests must never show up-to-date; do not install or update tools.",
+          "criticality": "critical"
+        }
+      ],
+      "test_case_ids": [
+        "TC-TOOLCHECK-REMOTE"
+      ],
+      "dependencies": [],
+      "out_of_scope": [
+        "GitHub 发布须用户后续确认",
+        "无法扩大 CLI 模型本身的上下文窗口，也不伪造已丢失的原始消息"
+      ],
+      "assumptions": [],
+      "created_at": "2026-09-17T17:16:10.770165+00:00",
+      "updated_at": "2026-09-17T17:16:10.770165+00:00"
+    },
+    {
+      "requirement_id": "REQ-TOOLCHECK-UI",
+      "parent_id": "REQ-SESSIONS",
+      "level": 2,
+      "category_path": [
+        "REQ-SESSIONS",
+        "REQ-TOOLCHECK-UI"
+      ],
+      "node_type": "leaf",
+      "title": "One-click all tools",
+      "description": "Visible version check entry, all-tools action, retry, current/latest/status/time and progress; deduplicate repeated clicks and keep UI responsive.",
+      "source": {
+        "type": "user",
+        "reference": "conversation:2026-09-18-tool-versions"
+      },
+      "priority": "P1",
+      "criticality": "critical",
+      "actors": [
+        "本机用户"
+      ],
+      "permissions": [],
+      "ui_contract": [],
+      "api_contract": [],
+      "database_contract": [],
+      "file_contract": [],
+      "acceptance_criteria": [
+        {
+          "criterion_id": "AC-TOOLCHECK-UI",
+          "given": "Installed app and isolated test fixtures",
+          "when": "One-click all tools",
+          "then": "Visible version check entry, all-tools action, retry, current/latest/status/time and progress; deduplicate repeated clicks and keep UI responsive.",
+          "criticality": "critical"
+        }
+      ],
+      "test_case_ids": [
+        "TC-TOOLCHECK-UI"
+      ],
+      "dependencies": [],
+      "out_of_scope": [
+        "GitHub 发布须用户后续确认",
+        "无法扩大 CLI 模型本身的上下文窗口，也不伪造已丢失的原始消息"
+      ],
+      "assumptions": [],
+      "created_at": "2026-09-17T17:16:10.770165+00:00",
+      "updated_at": "2026-09-17T17:16:10.770165+00:00"
+    },
+    {
+      "requirement_id": "REQ-TOOLCHECK-LOCALONLY",
+      "parent_id": "REQ-SESSIONS",
+      "level": 2,
+      "category_path": [
+        "REQ-SESSIONS",
+        "REQ-TOOLCHECK-LOCALONLY"
+      ],
+      "node_type": "leaf",
+      "title": "Local update only",
+      "description": "Build and replace local AI Coding with backups; no GitHub push or release without later user confirmation.",
+      "source": {
+        "type": "user",
+        "reference": "conversation:2026-09-18-tool-versions"
+      },
+      "priority": "P1",
+      "criticality": "critical",
+      "actors": [
+        "本机用户"
+      ],
+      "permissions": [],
+      "ui_contract": [],
+      "api_contract": [],
+      "database_contract": [],
+      "file_contract": [],
+      "acceptance_criteria": [
+        {
+          "criterion_id": "AC-TOOLCHECK-LOCALONLY",
+          "given": "Installed app and isolated test fixtures",
+          "when": "Local update only",
+          "then": "Build and replace local AI Coding with backups; no GitHub push or release without later user confirmation.",
+          "criticality": "critical"
+        }
+      ],
+      "test_case_ids": [
+        "TC-TOOLCHECK-LOCALONLY"
+      ],
+      "dependencies": [],
+      "out_of_scope": [
+        "GitHub 发布须用户后续确认",
+        "无法扩大 CLI 模型本身的上下文窗口，也不伪造已丢失的原始消息"
+      ],
+      "assumptions": [],
+      "created_at": "2026-09-17T17:16:10.770165+00:00",
+      "updated_at": "2026-09-17T17:16:10.770165+00:00"
+    },
+    {
+      "requirement_id": "REQ-CODEX-APPROVAL-COMMAND",
+      "parent_id": "REQ-SESSIONS",
+      "level": 2,
+      "category_path": [
+        "REQ-SESSIONS",
+        "REQ-CODEX-APPROVAL-COMMAND"
+      ],
+      "node_type": "leaf",
+      "title": "安全生成 Codex 全局免确认命令",
+      "description": "提供 macOS/Linux 与 Windows PowerShell 一次性命令；尊重 CODEX_HOME，备份并仅更新根级 approval_policy = \"never\"，保留其他 TOML 配置和沙箱设置，不执行命令。",
+      "source": {
+        "type": "user",
+        "reference": "conversation:2026-10-03-codex-approval-command"
+      },
+      "priority": "P1",
+      "criticality": "high",
+      "actors": [
+        "本机用户"
+      ],
+      "permissions": [],
+      "ui_contract": [],
+      "api_contract": [],
+      "database_contract": [],
+      "file_contract": [],
+      "acceptance_criteria": [
+        {
+          "criterion_id": "AC-CODEX-APPROVAL-COMMAND",
+          "given": "本机已安装 Codex CLI，测试仅使用临时配置目录",
+          "when": "复制并在隔离 Codex 目录执行命令",
+          "then": "根级策略变为 never，原配置与沙箱模式保留；重复执行无重复键；原文件有备份。",
+          "criticality": "high"
+        }
+      ],
+      "test_case_ids": [
+        "TC-CODEX-APPROVAL-COMMAND"
+      ],
+      "dependencies": [],
+      "out_of_scope": [
+        "不自动执行命令或更改现有用户 Codex 配置",
+        "本次不上传 GitHub"
+      ],
+      "assumptions": [],
+      "created_at": "2026-10-03T08:20:17.396693Z",
+      "updated_at": "2026-10-03T08:20:17.396693Z"
+    },
+    {
+      "requirement_id": "REQ-CODEX-APPROVAL-UI",
+      "parent_id": "REQ-SESSIONS",
+      "level": 2,
+      "category_path": [
+        "REQ-SESSIONS",
+        "REQ-CODEX-APPROVAL-UI"
+      ],
+      "node_type": "leaf",
+      "title": "Codex 设置中的一键复制入口",
+      "description": "Codex 设置区仅展示适合当前系统的一条命令和一个复制按钮；复制后给出成功或失败反馈，不自动执行或写入 Codex 配置。",
+      "source": {
+        "type": "user",
+        "reference": "conversation:2026-10-03-codex-approval-command"
+      },
+      "priority": "P1",
+      "criticality": "high",
+      "actors": [
+        "本机用户"
+      ],
+      "permissions": [],
+      "ui_contract": [],
+      "api_contract": [],
+      "database_contract": [],
+      "file_contract": [],
+      "acceptance_criteria": [
+        {
+          "criterion_id": "AC-CODEX-APPROVAL-UI",
+          "given": "本机已安装 Codex CLI，测试仅使用临时配置目录",
+          "when": "点击对应系统的复制按钮",
+          "then": "点击唯一复制按钮后，剪贴板得到当前系统完整命令；失败显示错误，软件不自动执行。",
+          "criticality": "high"
+        }
+      ],
+      "test_case_ids": [
+        "TC-CODEX-APPROVAL-UI"
+      ],
+      "dependencies": [],
+      "out_of_scope": [
+        "不自动执行命令或更改现有用户 Codex 配置",
+        "本次不上传 GitHub"
+      ],
+      "assumptions": [],
+      "created_at": "2026-10-03T08:20:17.396693Z",
+      "updated_at": "2026-10-03T08:20:17.396693Z"
+    },
+    {
+      "requirement_id": "REQ-CLAUDE-DUAL-ROOTS",
+      "parent_id": "REQ-SESSIONS",
+      "level": 2,
+      "category_path": [
+        "REQ-SESSIONS",
+        "REQ-CLAUDE-DUAL-ROOTS"
+      ],
+      "node_type": "leaf",
+      "title": "Claude 旧记录与专线双目录读取",
+      "description": "只读发现一个旧历史来源和实际安装的站长版、客户版 Claude GG projects 来源。客户版使用 .claude-gg-client/config.private.json 的 profile，站长版保持现有路径；默认配置缺失时沿用各自默认 profile。相同规范路径去重；旧默认目录缺失仍回退原归档策略。扫描、详情、全文搜索、文件状态使用相同边界，不修改历史或认证。",
+      "source": {
+        "type": "user",
+        "reference": "conversation:2026-10-21-claude-history-and-github-cleanup"
+      },
+      "priority": "P0",
+      "criticality": "critical",
+      "actors": [
+        "本机用户"
+      ],
+      "permissions": [],
+      "ui_contract": [],
+      "api_contract": [],
+      "database_contract": [],
+      "file_contract": [],
+      "acceptance_criteria": [
+        {
+          "criterion_id": "AC-CLAUDE-DUAL-ROOTS",
+          "given": "隔离临时目录包含客户版、站长版、两者共存、旧记录与异常来源；用户真实认证和记录不变",
+          "when": "扫描、准备恢复、复制命令并在隔离 shell 捕获实际入口、UUID 与环境",
+          "then": "只读发现一个旧历史来源和实际安装的站长版、客户版 Claude GG projects 来源。客户版使用 .claude-gg-client/config.private.json 的 profile，站长版保持现有路径；默认配置缺失时沿用各自默认 profile。相同规范路径去重；旧默认目录缺失仍回退原归档策略。扫描、详情、全文搜索、文件状态使用相同边界，不修改历史或认证。",
+          "criticality": "critical"
+        }
+      ],
+      "test_case_ids": [
+        "TC-CLAUDE-DUAL-ROOTS"
+      ],
+      "dependencies": [],
+      "out_of_scope": [
+        "不修改 Claude GG 专线、登录凭据或系统网络；不删除真实聊天记录"
+      ],
+      "assumptions": [],
+      "created_at": "2026-10-22T03:51:34.070356Z",
+      "updated_at": "2026-10-31T03:53:40.387658+00:00"
+    },
+    {
+      "requirement_id": "REQ-CLAUDE-DUAL-WATCH",
+      "parent_id": "REQ-SESSIONS",
+      "level": 2,
+      "category_path": [
+        "REQ-SESSIONS",
+        "REQ-CLAUDE-DUAL-WATCH"
+      ],
+      "node_type": "leaf",
+      "title": "双目录新增记录刷新",
+      "description": "监听器覆盖相同的旧历史与实际安装的站长/客户 Claude GG 历史根；启动时缺失根后来创建也可刷新，仍过滤子 Agent、无关文件和目录外事件。",
+      "source": {
+        "type": "user",
+        "reference": "conversation:2026-10-21-claude-history-and-github-cleanup"
+      },
+      "priority": "P0",
+      "criticality": "critical",
+      "actors": [
+        "本机用户"
+      ],
+      "permissions": [],
+      "ui_contract": [],
+      "api_contract": [],
+      "database_contract": [],
+      "file_contract": [],
+      "acceptance_criteria": [
+        {
+          "criterion_id": "AC-CLAUDE-DUAL-WATCH",
+          "given": "隔离临时目录包含客户版、站长版、两者共存、旧记录与异常来源；用户真实认证和记录不变",
+          "when": "扫描、准备恢复、复制命令并在隔离 shell 捕获实际入口、UUID 与环境",
+          "then": "监听器覆盖相同的旧历史与实际安装的站长/客户 Claude GG 历史根；启动时缺失根后来创建也可刷新，仍过滤子 Agent、无关文件和目录外事件。",
+          "criticality": "critical"
+        }
+      ],
+      "test_case_ids": [
+        "TC-CLAUDE-DUAL-WATCH"
+      ],
+      "dependencies": [],
+      "out_of_scope": [
+        "不修改 Claude GG 专线、登录凭据或系统网络；不删除真实聊天记录"
+      ],
+      "assumptions": [],
+      "created_at": "2026-10-22T03:51:34.070356Z",
+      "updated_at": "2026-10-31T03:53:40.387658+00:00"
+    },
+    {
+      "requirement_id": "REQ-CLAUDE-GG-RESUME",
+      "parent_id": "REQ-SESSIONS",
+      "level": 2,
+      "category_path": [
+        "REQ-SESSIONS",
+        "REQ-CLAUDE-GG-RESUME"
+      ],
+      "node_type": "leaf",
+      "title": "恢复会话遵守专线入口",
+      "description": "恢复选中的原会话 UUID 与工作目录，并按其实际来源绑定站长或客户既有 claude-gg 包装入口。macOS 客户入口 .claude-gg-client/bin/claude-gg，Windows 客户入口 claude-gg.cmd。禁止新增 CLAUDE_CONFIG_DIR、替换登录目录、复制认证、调用裸 claude 或回退其他 GG 安装；缺失/非可执行/歧义入口或非当前来源应明确拒绝。普通未安装 GG 的 Claude 与 Codex 恢复行为保持。",
+      "source": {
+        "type": "user",
+        "reference": "conversation:2026-10-21-claude-history-and-github-cleanup"
+      },
+      "priority": "P0",
+      "criticality": "critical",
+      "actors": [
+        "本机用户"
+      ],
+      "permissions": [],
+      "ui_contract": [],
+      "api_contract": [],
+      "database_contract": [],
+      "file_contract": [],
+      "acceptance_criteria": [
+        {
+          "criterion_id": "AC-CLAUDE-GG-RESUME",
+          "given": "隔离临时目录包含客户版、站长版、两者共存、旧记录与异常来源；用户真实认证和记录不变",
+          "when": "扫描、准备恢复、复制命令并在隔离 shell 捕获实际入口、UUID 与环境",
+          "then": "恢复选中的原会话 UUID 与工作目录，并按其实际来源绑定站长或客户既有 claude-gg 包装入口。macOS 客户入口 .claude-gg-client/bin/claude-gg，Windows 客户入口 claude-gg.cmd。禁止新增 CLAUDE_CONFIG_DIR、替换登录目录、复制认证、调用裸 claude 或回退其他 GG 安装；缺失/非可执行/歧义入口或非当前来源应明确拒绝。普通未安装 GG 的 Claude 与 Codex 恢复行为保持。",
+          "criticality": "critical"
+        }
+      ],
+      "test_case_ids": [
+        "TC-CLAUDE-GG-RESUME"
+      ],
+      "dependencies": [],
+      "out_of_scope": [
+        "不修改 Claude GG 专线、登录凭据或系统网络；不删除真实聊天记录"
+      ],
+      "assumptions": [],
+      "created_at": "2026-10-22T03:51:34.070356Z",
+      "updated_at": "2026-10-31T03:53:40.387658+00:00"
+    }
+  ]
+}
