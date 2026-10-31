@@ -1,0 +1,239 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.codex/software-delivery-harness/1.0.0/release-report.schema.json",
+  "title": "Software Delivery Harness release report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "standard_version", "project_name", "run_id", "git_commit", "environment",
+    "started_at", "completed_at", "overall_status", "release_allowed",
+    "requirement_counts", "test_counts", "evidence_counts", "requirements",
+    "failures", "blockers", "not_run_items", "scope_changes",
+    "commands_executed", "artifacts", "known_limitations", "verdict_reason"
+  ],
+  "properties": {
+    "standard_version": {"const": "1.0.0"},
+    "project_name": {"type": "string", "minLength": 1, "maxLength": 256},
+    "run_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "git_commit": {
+      "anyOf": [
+        {"type": "string", "minLength": 1, "maxLength": 128},
+        {"type": "null"}
+      ]
+    },
+    "environment": {"$ref": "#/$defs/environment"},
+    "started_at": {"type": "string", "format": "date-time"},
+    "completed_at": {"type": "string", "format": "date-time"},
+    "overall_status": {"enum": ["PASS", "FAIL", "BLOCKED", "NOT_RUN"]},
+    "release_allowed": {"type": "boolean"},
+    "requirement_counts": {"$ref": "#/$defs/requirementCounts"},
+    "test_counts": {"$ref": "#/$defs/testCounts"},
+    "evidence_counts": {"$ref": "#/$defs/evidenceCounts"},
+    "requirements": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/requirementResult"}
+    },
+    "failures": {"type": "array", "items": {"$ref": "#/$defs/issue"}},
+    "blockers": {"type": "array", "items": {"$ref": "#/$defs/issue"}},
+    "not_run_items": {"type": "array", "items": {"$ref": "#/$defs/issue"}},
+    "scope_changes": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/id"},
+      "uniqueItems": true
+    },
+    "commands_executed": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/command"}
+    },
+    "artifacts": {"type": "array", "items": {"$ref": "#/$defs/artifact"}},
+    "known_limitations": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1, "maxLength": 4096},
+      "uniqueItems": true
+    },
+    "verdict_reason": {"type": "string", "minLength": 1, "maxLength": 8192}
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"overall_status": {"const": "PASS"}},
+        "required": ["overall_status"]
+      },
+      "then": {
+        "properties": {
+          "git_commit": {"type": "string", "pattern": "^[a-f0-9]{40,64}$"},
+          "release_allowed": {"const": true},
+          "requirements": {"minItems": 1, "items": {"$ref": "#/$defs/passRequirementResult"}},
+          "failures": {"maxItems": 0},
+          "blockers": {"maxItems": 0},
+          "not_run_items": {"maxItems": 0},
+          "test_counts": {
+            "properties": {
+              "fail": {"const": 0},
+              "blocked": {"const": 0},
+              "not_run": {"const": 0},
+              "skipped": {"const": 0}
+            }
+          },
+          "evidence_counts": {
+            "properties": {
+              "missing": {"const": 0},
+              "hash_mismatch": {"const": 0},
+              "commit_mismatch": {"const": 0}
+            }
+          }
+        }
+      },
+      "else": {"properties": {"release_allowed": {"const": false}}}
+    },
+    {
+      "if": {"properties": {"overall_status": {"const": "FAIL"}}, "required": ["overall_status"]},
+      "then": {"properties": {"failures": {"minItems": 1}}}
+    },
+    {
+      "if": {"properties": {"overall_status": {"const": "BLOCKED"}}, "required": ["overall_status"]},
+      "then": {"properties": {"blockers": {"minItems": 1}}}
+    },
+    {
+      "if": {"properties": {"overall_status": {"const": "NOT_RUN"}}, "required": ["overall_status"]},
+      "then": {"properties": {"not_run_items": {"minItems": 1}}}
+    }
+  ],
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128,
+      "pattern": "^[A-Z][A-Z0-9_.-]*$"
+    },
+    "nonnegative": {"type": "integer", "minimum": 0},
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "os", "details"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1, "maxLength": 256},
+        "os": {"type": "string", "minLength": 1, "maxLength": 256},
+        "details": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1, "maxLength": 4096}
+        }
+      }
+    },
+    "requirementCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "pass", "fail", "blocked", "not_run", "critical_total"],
+      "properties": {
+        "total": {"$ref": "#/$defs/nonnegative"},
+        "pass": {"$ref": "#/$defs/nonnegative"},
+        "fail": {"$ref": "#/$defs/nonnegative"},
+        "blocked": {"$ref": "#/$defs/nonnegative"},
+        "not_run": {"$ref": "#/$defs/nonnegative"},
+        "critical_total": {"$ref": "#/$defs/nonnegative"}
+      }
+    },
+    "testCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "pass", "fail", "blocked", "not_run", "skipped", "mocked"],
+      "properties": {
+        "total": {"$ref": "#/$defs/nonnegative"},
+        "pass": {"$ref": "#/$defs/nonnegative"},
+        "fail": {"$ref": "#/$defs/nonnegative"},
+        "blocked": {"$ref": "#/$defs/nonnegative"},
+        "not_run": {"$ref": "#/$defs/nonnegative"},
+        "skipped": {"$ref": "#/$defs/nonnegative"},
+        "mocked": {"$ref": "#/$defs/nonnegative"}
+      }
+    },
+    "evidenceCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "verified", "missing", "hash_mismatch", "commit_mismatch"],
+      "properties": {
+        "total": {"$ref": "#/$defs/nonnegative"},
+        "verified": {"$ref": "#/$defs/nonnegative"},
+        "missing": {"$ref": "#/$defs/nonnegative"},
+        "hash_mismatch": {"$ref": "#/$defs/nonnegative"},
+        "commit_mismatch": {"$ref": "#/$defs/nonnegative"}
+      }
+    },
+    "requirementResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requirement_id", "status", "test_case_ids", "evidence_ids", "reason"],
+      "properties": {
+        "requirement_id": {"$ref": "#/$defs/id"},
+        "status": {"enum": ["PASS", "FAIL", "BLOCKED", "NOT_RUN"]},
+        "test_case_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/id"},
+          "uniqueItems": true
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/id"},
+          "uniqueItems": true
+        },
+        "reason": {"type": "string", "minLength": 1, "maxLength": 8192}
+      }
+    },
+    "passRequirementResult": {
+      "allOf": [
+        {"$ref": "#/$defs/requirementResult"},
+        {
+          "properties": {
+            "status": {"const": "PASS"},
+            "test_case_ids": {"minItems": 1},
+            "evidence_ids": {"minItems": 1}
+          }
+        }
+      ]
+    },
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "requirement_id", "test_case_id", "message", "evidence_ids"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "requirement_id": {"anyOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]},
+        "test_case_id": {"anyOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]},
+        "message": {"type": "string", "minLength": 1, "maxLength": 8192},
+        "evidence_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/id"},
+          "uniqueItems": true
+        }
+      }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "command", "cwd", "started_at", "completed_at", "exit_code", "status",
+        "stdout_path", "stderr_path"
+      ],
+      "properties": {
+        "command": {"type": "string", "minLength": 1, "maxLength": 8192},
+        "cwd": {"type": "string", "minLength": 1, "maxLength": 2048},
+        "started_at": {"type": "string", "format": "date-time"},
+        "completed_at": {"type": "string", "format": "date-time"},
+        "exit_code": {"type": "integer"},
+        "status": {"enum": ["PASS", "FAIL", "BLOCKED", "NOT_RUN"]},
+        "stdout_path": {"type": ["string", "null"], "maxLength": 2048},
+        "stderr_path": {"type": ["string", "null"], "maxLength": 2048}
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "artifact_type"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1, "maxLength": 2048},
+        "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "artifact_type": {"type": "string", "minLength": 1, "maxLength": 256}
+      }
+    }
+  }
+}

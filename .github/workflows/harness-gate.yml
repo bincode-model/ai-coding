@@ -1,0 +1,59 @@
+# software-delivery-harness managed workflow v1.0.0
+name: Harness Gate
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  harness-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: "corepack enable && pnpm install --frozen-lockfile"
+      - name: Lint
+        run: "python3 -c 'print('\"'\"'NOT_APPLICABLE: No project manifest or matching test command was detected during initialization.'\"'\"')'"
+      - name: Type check
+        run: "pnpm typecheck"
+      - name: Build
+        run: "pnpm build"
+      - name: Unit tests
+        run: "pnpm test:unit"
+      - name: API tests
+        run: "python3 -c 'print('\"'\"'NOT_APPLICABLE: No project manifest or matching test command was detected during initialization.'\"'\"')'"
+      - name: Database tests
+        run: "python3 -c 'print('\"'\"'NOT_APPLICABLE: No project manifest or matching test command was detected during initialization.'\"'\"')'"
+      - name: Integration tests
+        run: "python3 -c 'print('\"'\"'NOT_APPLICABLE: No project manifest or matching test command was detected during initialization.'\"'\"')'"
+      - name: E2E tests
+        run: "python3 -c 'print('\"'\"'NOT_APPLICABLE: No project manifest or matching test command was detected during initialization.'\"'\"')'"
+      - name: File tests
+        run: "python3 -c 'print('\"'\"'NOT_APPLICABLE: No project manifest or matching test command was detected during initialization.'\"'\"')'"
+      - name: Permission tests
+        run: "python3 -c 'print('\"'\"'NOT_APPLICABLE: No project manifest or matching test command was detected during initialization.'\"'\"')'"
+      - name: Security tests
+        run: "python3 -c 'print('\"'\"'NOT_APPLICABLE: No project manifest or matching test command was detected during initialization.'\"'\"')'"
+      - name: Harness Schema and semantic validation
+        run: python3 scripts/harness_validate.py
+      - name: Harness strict release gate
+        run: python3 scripts/harness_verify.py --collect --strict --json
+      - name: Upload Harness evidence and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: harness-artifacts
+          path: .harness/runs/
+          if-no-files-found: error
+          retention-days: 30

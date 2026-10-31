@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.codex/software-delivery-harness/1.0.0/traceability.schema.json",
+  "title": "Software Delivery Harness traceability",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["standard_version", "traceability"],
+  "properties": {
+    "standard_version": {"const": "1.0.0"},
+    "traceability": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/trace"}
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128,
+      "pattern": "^[A-Z][A-Z0-9_.-]*$"
+    },
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "path", "symbol", "line"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "path": {"type": "string", "minLength": 1, "maxLength": 2048},
+        "symbol": {"type": ["string", "null"], "maxLength": 1024},
+        "line": {"type": ["integer", "null"], "minimum": 1}
+      }
+    },
+    "lane": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "references", "reason"],
+      "properties": {
+        "state": {"enum": ["LINKED", "NOT_APPLICABLE", "PENDING"]},
+        "references": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/reference"}
+        },
+        "reason": {"type": ["string", "null"], "maxLength": 4096}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"state": {"const": "LINKED"}}, "required": ["state"]},
+          "then": {
+            "properties": {
+              "references": {"minItems": 1},
+              "reason": {"type": "null"}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {"state": {"enum": ["NOT_APPLICABLE", "PENDING"]}},
+            "required": ["state"]
+          },
+          "then": {
+            "properties": {
+              "references": {"maxItems": 0},
+              "reason": {"type": "string", "minLength": 1}
+            }
+          }
+        }
+      ]
+    },
+    "verdict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "acceptance_result_requirement_id", "status", "reason"],
+      "properties": {
+        "state": {"enum": ["LINKED", "PENDING"]},
+        "acceptance_result_requirement_id": {
+          "anyOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]
+        },
+        "status": {"enum": ["PASS", "FAIL", "BLOCKED", "NOT_RUN", null]},
+        "reason": {"type": ["string", "null"], "maxLength": 4096}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"state": {"const": "LINKED"}}, "required": ["state"]},
+          "then": {
+            "properties": {
+              "acceptance_result_requirement_id": {"$ref": "#/$defs/id"},
+              "status": {"enum": ["PASS", "FAIL", "BLOCKED", "NOT_RUN"]},
+              "reason": {"type": "null"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"state": {"const": "PENDING"}}, "required": ["state"]},
+          "then": {
+            "properties": {
+              "acceptance_result_requirement_id": {"type": "null"},
+              "status": {"type": "null"},
+              "reason": {"type": "string", "minLength": 1}
+            }
+          }
+        }
+      ]
+    },
+    "trace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trace_id", "requirement_id", "acceptance_criterion_id", "implementation",
+        "frontend", "backend", "storage", "permissions", "test_case_ids",
+        "test_execution_ids", "evidence_ids", "final_verdict"
+      ],
+      "properties": {
+        "trace_id": {"$ref": "#/$defs/id"},
+        "requirement_id": {"$ref": "#/$defs/id"},
+        "acceptance_criterion_id": {"$ref": "#/$defs/id"},
+        "implementation": {"$ref": "#/$defs/lane"},
+        "frontend": {"$ref": "#/$defs/lane"},
+        "backend": {"$ref": "#/$defs/lane"},
+        "storage": {"$ref": "#/$defs/lane"},
+        "permissions": {"$ref": "#/$defs/lane"},
+        "test_case_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/id"},
+          "uniqueItems": true
+        },
+        "test_execution_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/id"},
+          "uniqueItems": true
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/id"},
+          "uniqueItems": true
+        },
+        "final_verdict": {"$ref": "#/$defs/verdict"}
+      }
+    }
+  }
+}

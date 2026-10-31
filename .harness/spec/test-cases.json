@@ -1,0 +1,883 @@
+{
+  "standard_version": "1.0.0",
+  "test_cases": [
+    {
+      "test_case_id": "TC-HISTORY",
+      "requirement_ids": [
+        "REQ-HISTORY"
+      ],
+      "acceptance_criterion_ids": [
+        "AC-HISTORY"
+      ],
+      "contract_ids": [],
+      "test_type": "integration",
+      "preconditions": [
+        "原始用户会话只读；测试使用临时数据"
+      ],
+      "steps": [
+        {
+          "step_no": 1,
+          "action": "完整显示保存的原始对话",
+          "input": null
+        }
+      ],
+      "expected_results": [
+        {
+          "step_no": 1,
+          "expected": "Codex 的 response_item、event_msg 对话及工具内容完整加载，重复镜像只显示一次；Claude 对话不截断。"
+        }
+      ],
+      "environment": {
+        "name": "local-macos",
+        "os": "macOS arm64",
+        "services": [
+          "Tauri",
+          "Vitest"
+        ],
+        "variables": [],
+        "secrets_redacted": true
+      },
+      "data_fixture": [],
+      "automation_path": null,
+      "is_mocked": false,
+      "criticality": "critical"
+    },
+    {
+      "test_case_id": "TC-RESUME",
+      "requirement_ids": [
+        "REQ-RESUME"
+      ],
+      "acceptance_criterion_ids": [
+        "AC-RESUME"
+      ],
+      "contract_ids": [],
+      "test_type": "integration",
+      "preconditions": [
+        "原始用户会话只读；测试使用临时数据"
+      ],
+      "steps": [
+        {
+          "step_no": 1,
+          "action": "恢复原会话",
+          "input": null
+        }
+      ],
+      "expected_results": [
+        {
+          "step_no": 1,
+          "expected": "恢复使用原会话 ID 和来源目录，不新建或拼接摘要会话；Codex 保留终端滚动历史。"
+        }
+      ],
+      "environment": {
+        "name": "local-macos",
+        "os": "macOS arm64",
+        "services": [
+          "Tauri",
+          "Vitest"
+        ],
+        "variables": [],
+        "secrets_redacted": true
+      },
+      "data_fixture": [],
+      "automation_path": null,
+      "is_mocked": false,
+      "criticality": "critical"
+    },
+    {
+      "test_case_id": "TC-LATEST",
+      "requirement_ids": [
+        "REQ-LATEST"
+      ],
+      "acceptance_criterion_ids": [
+        "AC-LATEST"
+      ],
+      "contract_ids": [],
+      "test_type": "component",
+      "preconditions": [
+        "原始用户会话只读；测试使用临时数据"
+      ],
+      "steps": [
+        {
+          "step_no": 1,
+          "action": "最新会话刷新筛选",
+          "input": null
+        }
+      ],
+      "expected_results": [
+        {
+          "step_no": 1,
+          "expected": "刷新发现新会话并更新当前消息与搜索；可按最近活动筛选和排序。"
+        }
+      ],
+      "environment": {
+        "name": "local-macos",
+        "os": "macOS arm64",
+        "services": [
+          "Tauri",
+          "Vitest"
+        ],
+        "variables": [],
+        "secrets_redacted": true
+      },
+      "data_fixture": [],
+      "automation_path": null,
+      "is_mocked": true,
+      "criticality": "critical"
+    },
+    {
+      "test_case_id": "TC-ARCHIVE",
+      "requirement_ids": [
+        "REQ-ARCHIVE"
+      ],
+      "acceptance_criterion_ids": [
+        "AC-ARCHIVE"
+      ],
+      "contract_ids": [],
+      "test_type": "component",
+      "preconditions": [
+        "原始用户会话只读；测试使用临时数据"
+      ],
+      "steps": [
+        {
+          "step_no": 1,
+          "action": "归档全文搜索",
+          "input": null
+        }
+      ],
+      "expected_results": [
+        {
+          "step_no": 1,
+          "expected": "在当前 Agent 下搜索时包含归档，结果显示归档状态。"
+        }
+      ],
+      "environment": {
+        "name": "local-macos",
+        "os": "macOS arm64",
+        "services": [
+          "Tauri",
+          "Vitest"
+        ],
+        "variables": [],
+        "secrets_redacted": true
+      },
+      "data_fixture": [],
+      "automation_path": null,
+      "is_mocked": true,
+      "criticality": "critical"
+    },
+    {
+      "test_case_id": "TC-EXACT",
+      "requirement_ids": [
+        "REQ-EXACT"
+      ],
+      "acceptance_criterion_ids": [
+        "AC-EXACT"
+      ],
+      "contract_ids": [],
+      "test_type": "integration",
+      "preconditions": [
+        "原始用户会话只读；测试使用临时数据"
+      ],
+      "steps": [
+        {
+          "step_no": 1,
+          "action": "用户与 AI 正文精准搜索",
+          "input": null
+        }
+      ],
+      "expected_results": [
+        {
+          "step_no": 1,
+          "expected": "完整词句可命中用户和 AI 内容，包括后续写入的新消息；精准模式不返回只有模糊命中的结果。"
+        }
+      ],
+      "environment": {
+        "name": "local-macos",
+        "os": "macOS arm64",
+        "services": [
+          "Tauri",
+          "Vitest"
+        ],
+        "variables": [],
+        "secrets_redacted": true
+      },
+      "data_fixture": [],
+      "automation_path": null,
+      "is_mocked": false,
+      "criticality": "critical"
+    },
+    {
+      "test_case_id": "TC-SCOPE",
+      "requirement_ids": [
+        "REQ-SCOPE"
+      ],
+      "acceptance_criterion_ids": [
+        "AC-SCOPE"
+      ],
+      "contract_ids": [],
+      "test_type": "component",
+      "preconditions": [
+        "原始用户会话只读；测试使用临时数据"
+      ],
+      "steps": [
+        {
+          "step_no": 1,
+          "action": "Agent 默认独立",
+          "input": null
+        }
+      ],
+      "expected_results": [
+        {
+          "step_no": 1,
+          "expected": "切换 Agent 后只检索该 Agent；显式选择合并检索才跨 Agent。"
+        }
+      ],
+      "environment": {
+        "name": "local-macos",
+        "os": "macOS arm64",
+        "services": [
+          "Tauri",
+          "Vitest"
+        ],
+        "variables": [],
+        "secrets_redacted": true
+      },
+      "data_fixture": [],
+      "automation_path": null,
+      "is_mocked": true,
+      "criticality": "critical"
+    },
+    {
+      "test_case_id": "TC-LOCAL",
+      "requirement_ids": [
+        "REQ-LOCAL"
+      ],
+      "acceptance_criterion_ids": [
+        "AC-LOCAL"
+      ],
+      "contract_ids": [],
+      "test_type": "integration",
+      "preconditions": [
+        "原始用户会话只读；测试使用临时数据"
+      ],
+      "steps": [
+        {
+          "step_no": 1,
+          "action": "本地验证等待发布",
+          "input": null
+        }
+      ],
+      "expected_results": [
+        {
+          "step_no": 1,
+          "expected": "修改、测试和安装包留在本地，不 push、发布 Release 或同步 GitHub。"
+        }
+      ],
+      "environment": {
+        "name": "local-macos",
+        "os": "macOS arm64",
+        "services": [
+          "Tauri",
+          "Vitest"
+        ],
+        "variables": [],
+        "secrets_redacted": true
+      },
+      "data_fixture": [],
+      "automation_path": null,
+      "is_mocked": false,
+      "criticality": "critical"
+    },
+    {
+      "test_case_id": "TC-PERF",
+      "requirement_ids": [
+        "REQ-PERF"
+      ],
+      "acceptance_criterion_ids": [
+        "AC-PERF"
+      ],
+      "contract_ids": [],
+      "test_type": "performance",
+      "preconditions": [
+        "原始用户会话只读；测试使用临时数据"
+      ],
+      "steps": [
+        {
+          "step_no": 1,
+          "action": "检索性能",
+          "input": null
+        }
+      ],
+      "expected_results": [
+        {
+          "step_no": 1,
+          "expected": "检索仅保留最新请求；旧请求可取消或停止计算，刷新不导致全库反复解析；界面输入和结果滚动保持响应；记录真实只读性能数据。"
+        }
+      ],
+      "environment": {
+        "name": "local-macos",
+        "os": "macOS arm64",
+        "services": [
+          "Tauri",
+          "Vitest"
+        ],
+        "variables": [],
+        "secrets_redacted": true
+      },
+      "data_fixture": [],
+      "automation_path": null,
+      "is_mocked": false,
+      "criticality": "critical"
+    },
+    {
+      "test_case_id": "TC-PIN-ARCHIVE",
+      "requirement_ids": [
+        "REQ-PIN-ARCHIVE"
+      ],
+      "acceptance_criterion_ids": [
+        "AC-PIN-ARCHIVE"
+      ],
+      "contract_ids": [],
+      "test_type": "component",
+      "preconditions": [
+        "原始用户会话只读；测试使用临时数据"
+      ],
+      "steps": [
+        {
+          "step_no": 1,
+          "action": "归档与置顶独立",
+          "input": null
+        }
+      ],
+      "expected_results": [
+        {
+          "step_no": 1,
+          "expected": "归档不取消置顶，归档会话也可置顶并在会话主列表置顶区显示，取消置顶不取消归档，刷新和重启保留。"
+        }
+      ],
+      "environment": {
+        "name": "local-macos",
+        "os": "macOS arm64",
+        "services": [
+          "Tauri",
+          "Vitest"
+        ],
+        "variables": [],
+        "secrets_redacted": true
+      },
+      "data_fixture": [],
+      "automation_path": null,
+      "is_mocked": true,
+      "criticality": "critical"
+    },
+    {
+      "test_case_id": "TC-RENAME",
+      "requirement_ids": [
+        "REQ-RENAME"
+      ],
+      "acceptance_criterion_ids": [
+        "AC-RENAME"
+      ],
+      "contract_ids": [],
+      "test_type": "component",
+      "preconditions": [
+        "原始用户会话只读；测试使用临时数据"
+      ],
+      "steps": [
+        {
+          "step_no": 1,
+          "action": "会话自定义命名",
+          "input": null
+        }
+      ],
+      "expected_results": [
+        {
+          "step_no": 1,
+          "expected": "可在会话界面自定义名称、修改或清除恢复原标题；刷新重启保留，检索可命中自定义名称；不得改写原始聊天。"
+        }
+      ],
+      "environment": {
+        "name": "local-macos",
+        "os": "macOS arm64",
+        "services": [
+          "Tauri",
+          "Vitest"
+        ],
+        "variables": [],
+        "secrets_redacted": true
+      },
+      "data_fixture": [],
+      "automation_path": null,
+      "is_mocked": true,
+      "criticality": "critical"
+    },
+    {
+      "test_case_id": "TC-SEARCH-STABILITY",
+      "requirement_ids": [
+        "REQ-SEARCH-STABILITY"
+      ],
+      "acceptance_criterion_ids": [
+        "AC-SEARCH-STABILITY"
+      ],
+      "contract_ids": [],
+      "test_type": "component",
+      "preconditions": [
+        "原始用户会话只读；测试使用临时数据"
+      ],
+      "steps": [
+        {
+          "step_no": 1,
+          "action": "全文索引同时约束文件句柄数量与字节；超过1000个小会话反复搜索仍能读取会话与数据库，筛选/选择不让界面崩溃或清空；原始聊天只读。",
+          "input": null
+        }
+      ],
+      "expected_results": [
+        {
+          "step_no": 1,
+          "expected": "文件句柄预算不超限；有活跃reader时也不超限；搜索正确，选择和筛选仍可用"
+        }
+      ],
+      "environment": {
+        "name": "local-macos",
+        "os": "macOS arm64",
+        "services": [
+          "Tauri",
+          "Vitest"
+        ],
+        "variables": [],
+        "secrets_redacted": true
+      },
+      "data_fixture": [],
+      "automation_path": null,
+      "is_mocked": true,
+      "criticality": "critical"
+    },
+    {
+      "test_case_id": "TC-TOOLCHECK-CATALOG",
+      "requirement_ids": [
+        "REQ-TOOLCHECK-CATALOG"
+      ],
+      "acceptance_criterion_ids": [
+        "AC-TOOLCHECK-CATALOG"
+      ],
+      "contract_ids": [],
+      "test_type": "component",
+      "preconditions": [
+        "原始用户会话只读；测试使用临时数据"
+      ],
+      "steps": [
+        {
+          "step_no": 1,
+          "action": "All integrated tools",
+          "input": null
+        }
+      ],
+      "expected_results": [
+        {
+          "step_no": 1,
+          "expected": "Cover all eight CLIs plus explicit Claude Desktop and BinCode capability rows. No silent omission."
+        }
+      ],
+      "environment": {
+        "name": "local-macos",
+        "os": "macOS arm64",
+        "services": [
+          "Tauri",
+          "Vitest"
+        ],
+        "variables": [],
+        "secrets_redacted": true
+      },
+      "data_fixture": [],
+      "automation_path": "tests/components/ToolVersionsSection.test.tsx",
+      "is_mocked": true,
+      "criticality": "critical"
+    },
+    {
+      "test_case_id": "TC-TOOLCHECK-LOCAL",
+      "requirement_ids": [
+        "REQ-TOOLCHECK-LOCAL"
+      ],
+      "acceptance_criterion_ids": [
+        "AC-TOOLCHECK-LOCAL"
+      ],
+      "contract_ids": [],
+      "test_type": "component",
+      "preconditions": [
+        "原始用户会话只读；测试使用临时数据"
+      ],
+      "steps": [
+        {
+          "step_no": 1,
+          "action": "Read-only local detection",
+          "input": null
+        }
+      ],
+      "expected_results": [
+        {
+          "step_no": 1,
+          "expected": "Bounded command timeout, process cleanup and concurrency; respect Claude GG guard and distinguish blocked from missing."
+        }
+      ],
+      "environment": {
+        "name": "local-macos",
+        "os": "macOS arm64",
+        "services": [
+          "Tauri",
+          "Vitest"
+        ],
+        "variables": [],
+        "secrets_redacted": true
+      },
+      "data_fixture": [],
+      "automation_path": "src-tauri/src/commands/misc.rs",
+      "is_mocked": false,
+      "criticality": "critical"
+    },
+    {
+      "test_case_id": "TC-TOOLCHECK-REMOTE",
+      "requirement_ids": [
+        "REQ-TOOLCHECK-REMOTE"
+      ],
+      "acceptance_criterion_ids": [
+        "AC-TOOLCHECK-REMOTE"
+      ],
+      "contract_ids": [],
+      "test_type": "component",
+      "preconditions": [
+        "原始用户会话只读；测试使用临时数据"
+      ],
+      "steps": [
+        {
+          "step_no": 1,
+          "action": "Official latest versions",
+          "input": null
+        }
+      ],
+      "expected_results": [
+        {
+          "step_no": 1,
+          "expected": "Use official registries/releases; unknown, invalid and failed requests must never show up-to-date; do not install or update tools."
+        }
+      ],
+      "environment": {
+        "name": "local-macos",
+        "os": "macOS arm64",
+        "services": [
+          "Tauri",
+          "Vitest"
+        ],
+        "variables": [],
+        "secrets_redacted": true
+      },
+      "data_fixture": [],
+      "automation_path": "src-tauri/src/commands/misc.rs",
+      "is_mocked": false,
+      "criticality": "critical"
+    },
+    {
+      "test_case_id": "TC-TOOLCHECK-UI",
+      "requirement_ids": [
+        "REQ-TOOLCHECK-UI"
+      ],
+      "acceptance_criterion_ids": [
+        "AC-TOOLCHECK-UI"
+      ],
+      "contract_ids": [],
+      "test_type": "component",
+      "preconditions": [
+        "原始用户会话只读；测试使用临时数据"
+      ],
+      "steps": [
+        {
+          "step_no": 1,
+          "action": "One-click all tools",
+          "input": null
+        }
+      ],
+      "expected_results": [
+        {
+          "step_no": 1,
+          "expected": "Visible version check entry, all-tools action, retry, current/latest/status/time and progress; deduplicate repeated clicks and keep UI responsive."
+        }
+      ],
+      "environment": {
+        "name": "local-macos",
+        "os": "macOS arm64",
+        "services": [
+          "Tauri",
+          "Vitest"
+        ],
+        "variables": [],
+        "secrets_redacted": true
+      },
+      "data_fixture": [],
+      "automation_path": "tests/components/ToolVersionsSection.test.tsx",
+      "is_mocked": true,
+      "criticality": "critical"
+    },
+    {
+      "test_case_id": "TC-TOOLCHECK-LOCALONLY",
+      "requirement_ids": [
+        "REQ-TOOLCHECK-LOCALONLY"
+      ],
+      "acceptance_criterion_ids": [
+        "AC-TOOLCHECK-LOCALONLY"
+      ],
+      "contract_ids": [],
+      "test_type": "component",
+      "preconditions": [
+        "原始用户会话只读；测试使用临时数据"
+      ],
+      "steps": [
+        {
+          "step_no": 1,
+          "action": "Local update only",
+          "input": null
+        }
+      ],
+      "expected_results": [
+        {
+          "step_no": 1,
+          "expected": "Build and replace local AI Coding with backups; no GitHub push or release without later user confirmation."
+        }
+      ],
+      "environment": {
+        "name": "local-macos",
+        "os": "macOS arm64",
+        "services": [
+          "Tauri",
+          "Vitest"
+        ],
+        "variables": [],
+        "secrets_redacted": true
+      },
+      "data_fixture": [],
+      "automation_path": "validation/tool-versions-20260918/install-local.py",
+      "is_mocked": false,
+      "criticality": "critical"
+    },
+    {
+      "test_case_id": "TC-CODEX-APPROVAL-COMMAND",
+      "requirement_ids": [
+        "REQ-CODEX-APPROVAL-COMMAND"
+      ],
+      "acceptance_criterion_ids": [
+        "AC-CODEX-APPROVAL-COMMAND"
+      ],
+      "contract_ids": [],
+      "test_type": "unit",
+      "preconditions": [
+        "用户 Codex 配置只读；测试使用临时目录或 mock 剪贴板"
+      ],
+      "steps": [
+        {
+          "step_no": 1,
+          "action": "复制并在隔离 Codex 目录执行命令",
+          "input": null
+        }
+      ],
+      "expected_results": [
+        {
+          "step_no": 1,
+          "expected": "根级策略变为 never，原配置与沙箱模式保留；重复执行无重复键；原文件有备份。"
+        }
+      ],
+      "environment": {
+        "name": "local-macos",
+        "os": "macOS arm64",
+        "services": [
+          "Vitest",
+          "Codex CLI"
+        ],
+        "variables": [
+          {
+            "name": "CODEX_HOME",
+            "value": "temporary test directory"
+          }
+        ],
+        "secrets_redacted": true
+      },
+      "data_fixture": [],
+      "automation_path": "tests/lib/codexApprovalCommands.test.ts",
+      "is_mocked": false,
+      "criticality": "high"
+    },
+    {
+      "test_case_id": "TC-CODEX-APPROVAL-UI",
+      "requirement_ids": [
+        "REQ-CODEX-APPROVAL-UI"
+      ],
+      "acceptance_criterion_ids": [
+        "AC-CODEX-APPROVAL-UI"
+      ],
+      "contract_ids": [],
+      "test_type": "component",
+      "preconditions": [
+        "用户 Codex 配置只读；测试使用临时目录或 mock 剪贴板"
+      ],
+      "steps": [
+        {
+          "step_no": 1,
+          "action": "点击对应系统的复制按钮",
+          "input": null
+        }
+      ],
+      "expected_results": [
+        {
+          "step_no": 1,
+          "expected": "剪贴板得到完整命令；复制失败显示错误，软件不自动修改 Codex 设置。"
+        }
+      ],
+      "environment": {
+        "name": "local-macos",
+        "os": "macOS arm64",
+        "services": [
+          "Vitest",
+          "Tauri"
+        ],
+        "variables": [],
+        "secrets_redacted": true
+      },
+      "data_fixture": [],
+      "automation_path": "tests/components/CodexApprovalCommand.test.tsx",
+      "is_mocked": true,
+      "criticality": "high"
+    },
+    {
+      "test_case_id": "TC-CLAUDE-DUAL-ROOTS",
+      "requirement_ids": [
+        "REQ-CLAUDE-DUAL-ROOTS"
+      ],
+      "acceptance_criterion_ids": [
+        "AC-CLAUDE-DUAL-ROOTS"
+      ],
+      "contract_ids": [],
+      "test_type": "integration",
+      "preconditions": [
+        "临时测试 HOME 参数，真实 HOME、登录、记录、专线配置不变",
+        "客户、站长及共存安装 fixture，含带空格和引号路径"
+      ],
+      "steps": [
+        {
+          "step_no": 1,
+          "action": "在临时目录构造旧会话、专线会话、缺失目录、重复文件与路径逃逸并扫描/读取/搜索。",
+          "input": null
+        }
+      ],
+      "expected_results": [
+        {
+          "step_no": 1,
+          "expected": "只读发现一个旧历史来源和实际安装的站长版、客户版 Claude GG projects 来源。客户版使用 .claude-gg-client/config.private.json 的 profile，站长版保持现有路径；默认配置缺失时沿用各自默认 profile。相同规范路径去重；旧默认目录缺失仍回退原归档策略。扫描、详情、全文搜索、文件状态使用相同边界，不修改历史或认证。"
+        }
+      ],
+      "environment": {
+        "name": "local-macos",
+        "os": "macOS arm64",
+        "services": [
+          "Tauri",
+          "Vitest"
+        ],
+        "variables": [],
+        "secrets_redacted": true
+      },
+      "data_fixture": [],
+      "automation_path": "src-tauri/src/session_manager/claude_dual_roots_tests.rs",
+      "is_mocked": false,
+      "criticality": "critical"
+    },
+    {
+      "test_case_id": "TC-CLAUDE-DUAL-WATCH",
+      "requirement_ids": [
+        "REQ-CLAUDE-DUAL-WATCH"
+      ],
+      "acceptance_criterion_ids": [
+        "AC-CLAUDE-DUAL-WATCH"
+      ],
+      "contract_ids": [],
+      "test_type": "integration",
+      "preconditions": [
+        "临时测试 HOME 参数，真实 HOME、登录、记录、专线配置不变",
+        "客户、站长及共存安装 fixture，含带空格和引号路径"
+      ],
+      "steps": [
+        {
+          "step_no": 1,
+          "action": "在临时两目录分别新增/追加 JSONL，验证 watcher 根与事件分类。",
+          "input": null
+        }
+      ],
+      "expected_results": [
+        {
+          "step_no": 1,
+          "expected": "监听器覆盖相同的旧历史与实际安装的站长/客户 Claude GG 历史根；启动时缺失根后来创建也可刷新，仍过滤子 Agent、无关文件和目录外事件。"
+        }
+      ],
+      "environment": {
+        "name": "local-macos",
+        "os": "macOS arm64",
+        "services": [
+          "Tauri",
+          "Vitest"
+        ],
+        "variables": [],
+        "secrets_redacted": true
+      },
+      "data_fixture": [],
+      "automation_path": "src-tauri/src/session_manager/claude_dual_roots_tests.rs",
+      "is_mocked": false,
+      "criticality": "critical"
+    },
+    {
+      "test_case_id": "TC-CLAUDE-GG-RESUME",
+      "requirement_ids": [
+        "REQ-CLAUDE-GG-RESUME"
+      ],
+      "acceptance_criterion_ids": [
+        "AC-CLAUDE-GG-RESUME"
+      ],
+      "contract_ids": [],
+      "test_type": "integration",
+      "preconditions": [
+        "临时测试 HOME 参数，真实 HOME、登录、记录、专线配置不变",
+        "客户、站长及共存安装 fixture，含带空格和引号路径"
+      ],
+      "steps": [
+        {
+          "step_no": 1,
+          "action": "准备专线与旧归档恢复命令并检查 UUID、工作目录、shell 参数转义与来源路径。",
+          "input": null
+        },
+        {
+          "step_no": 2,
+          "action": "在隔离 shell 从其他目录粘贴准备后的复制命令，验证 cwd、绝对入口和 UUID；覆盖带空格/单引号/命令替换字符路径、目录不存在与无 cwd，并检查正常复制、非 macOS 恢复、macOS 启动失败回退三条 UI 路径。",
+          "input": null
+        }
+      ],
+      "expected_results": [
+        {
+          "step_no": 1,
+          "expected": "恢复选中的原会话 UUID 与工作目录，并按其实际来源绑定站长或客户既有 claude-gg 包装入口。macOS 客户入口 .claude-gg-client/bin/claude-gg，Windows 客户入口 claude-gg.cmd。禁止新增 CLAUDE_CONFIG_DIR、替换登录目录、复制认证、调用裸 claude 或回退其他 GG 安装；缺失/非可执行/歧义入口或非当前来源应明确拒绝。普通未安装 GG 的 Claude 与 Codex 恢复行为保持。"
+        },
+        {
+          "step_no": 2,
+          "expected": "复制命令保留准备时的项目目录和原命令参数，目录切换失败不执行恢复；路径字符保持字面值；正常 Mac 直接启动仍单独传递原 command 和 cwd，Windows 仅构造测试不冒充原生验收。"
+        }
+      ],
+      "environment": {
+        "name": "local-macos",
+        "os": "macOS arm64",
+        "services": [
+          "Tauri",
+          "Vitest"
+        ],
+        "variables": [],
+        "secrets_redacted": true
+      },
+      "data_fixture": [],
+      "automation_path": "src-tauri/src/session_manager/claude_dual_roots_tests.rs",
+      "is_mocked": false,
+      "criticality": "critical"
+    }
+  ]
+}

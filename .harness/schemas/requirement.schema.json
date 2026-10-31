@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.codex/software-delivery-harness/1.0.0/requirement.schema.json",
+  "title": "Software Delivery Harness requirements",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["standard_version", "requirements"],
+  "properties": {
+    "standard_version": {"const": "1.0.0"},
+    "requirements": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/requirement"}
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128,
+      "pattern": "^[A-Z][A-Z0-9_.-]*$"
+    },
+    "nonemptyString": {"type": "string", "minLength": 1, "maxLength": 4096},
+    "stringList": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/nonemptyString"},
+      "uniqueItems": true
+    },
+    "nonemptyStringList": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/nonemptyString"},
+      "uniqueItems": true
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "reference"],
+      "properties": {
+        "type": {
+          "enum": ["user", "project", "document", "issue", "design", "regulation", "derived"]
+        },
+        "reference": {"$ref": "#/$defs/nonemptyString"},
+        "excerpt": {"type": ["string", "null"], "maxLength": 4096}
+      }
+    },
+    "permission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["permission_id", "actor", "action", "resource", "expected"],
+      "properties": {
+        "permission_id": {"$ref": "#/$defs/id"},
+        "actor": {"$ref": "#/$defs/nonemptyString"},
+        "action": {"$ref": "#/$defs/nonemptyString"},
+        "resource": {"$ref": "#/$defs/nonemptyString"},
+        "expected": {"enum": ["allow", "deny"]}
+      }
+    },
+    "uiContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract_id", "page", "element_type", "label", "action", "expected_states"],
+      "properties": {
+        "contract_id": {"$ref": "#/$defs/id"},
+        "page": {"$ref": "#/$defs/nonemptyString"},
+        "element_type": {
+          "enum": ["page", "route", "button", "link", "form", "field", "dialog", "table", "menu", "status", "other"]
+        },
+        "label": {"$ref": "#/$defs/nonemptyString"},
+        "action": {"$ref": "#/$defs/nonemptyString"},
+        "expected_states": {"$ref": "#/$defs/nonemptyStringList"}
+      }
+    },
+    "apiContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract_id", "method", "path", "request", "success_response", "error_responses"],
+      "properties": {
+        "contract_id": {"$ref": "#/$defs/id"},
+        "method": {"enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "RPC", "EVENT"]},
+        "path": {"$ref": "#/$defs/nonemptyString"},
+        "request": {"$ref": "#/$defs/nonemptyString"},
+        "success_response": {"$ref": "#/$defs/nonemptyString"},
+        "error_responses": {"$ref": "#/$defs/nonemptyStringList"}
+      }
+    },
+    "databaseContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract_id", "operation", "entity", "constraints", "persistence_expectation"],
+      "properties": {
+        "contract_id": {"$ref": "#/$defs/id"},
+        "operation": {"enum": ["create", "read", "update", "delete", "migrate", "transaction", "query", "none"]},
+        "entity": {"$ref": "#/$defs/nonemptyString"},
+        "constraints": {"$ref": "#/$defs/nonemptyStringList"},
+        "persistence_expectation": {"$ref": "#/$defs/nonemptyString"}
+      }
+    },
+    "fileContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract_id", "action", "formats", "validations", "storage_expectation"],
+      "properties": {
+        "contract_id": {"$ref": "#/$defs/id"},
+        "action": {"enum": ["read", "create", "write", "replace", "move", "upload", "validate", "parse", "preview", "download", "delete", "import", "export"]},
+        "formats": {"$ref": "#/$defs/nonemptyStringList"},
+        "validations": {"$ref": "#/$defs/nonemptyStringList"},
+        "storage_expectation": {"$ref": "#/$defs/nonemptyString"}
+      }
+    },
+    "criterion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["criterion_id", "given", "when", "then", "criticality"],
+      "properties": {
+        "criterion_id": {"$ref": "#/$defs/id"},
+        "given": {"$ref": "#/$defs/nonemptyString"},
+        "when": {"$ref": "#/$defs/nonemptyString"},
+        "then": {"$ref": "#/$defs/nonemptyString"},
+        "criticality": {"enum": ["critical", "high", "medium", "low"]}
+      }
+    },
+    "requirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requirement_id", "parent_id", "level", "category_path", "node_type",
+        "title", "description", "source", "priority", "criticality", "actors",
+        "permissions", "ui_contract", "api_contract", "database_contract",
+        "file_contract", "acceptance_criteria", "test_case_ids", "dependencies",
+        "out_of_scope", "assumptions", "created_at", "updated_at"
+      ],
+      "properties": {
+        "requirement_id": {"$ref": "#/$defs/id"},
+        "parent_id": {"anyOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]},
+        "level": {"type": "integer", "minimum": 1},
+        "category_path": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/id"},
+          "uniqueItems": true
+        },
+        "node_type": {"enum": ["group", "leaf"]},
+        "title": {"$ref": "#/$defs/nonemptyString"},
+        "description": {"$ref": "#/$defs/nonemptyString"},
+        "source": {"$ref": "#/$defs/source"},
+        "priority": {"enum": ["P0", "P1", "P2", "P3"]},
+        "criticality": {"enum": ["critical", "high", "medium", "low"]},
+        "actors": {"$ref": "#/$defs/stringList"},
+        "permissions": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/permission"}
+        },
+        "ui_contract": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/uiContract"}
+        },
+        "api_contract": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/apiContract"}
+        },
+        "database_contract": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/databaseContract"}
+        },
+        "file_contract": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/fileContract"}
+        },
+        "acceptance_criteria": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/criterion"}
+        },
+        "test_case_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/id"},
+          "uniqueItems": true
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/id"},
+          "uniqueItems": true
+        },
+        "out_of_scope": {"$ref": "#/$defs/stringList"},
+        "assumptions": {"$ref": "#/$defs/stringList"},
+        "created_at": {"type": "string", "format": "date-time"},
+        "updated_at": {"type": "string", "format": "date-time"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"node_type": {"const": "leaf"}}, "required": ["node_type"]},
+          "then": {"properties": {"acceptance_criteria": {"minItems": 1}, "actors": {"minItems": 1}}}
+        }
+      ]
+    }
+  }
+}

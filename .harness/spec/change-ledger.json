@@ -1,0 +1,335 @@
+{
+  "change_ledger": [
+    {
+      "change_id": "CHANGE-CODEX-APPROVAL-20261003",
+      "requirement_ids": [
+        "REQ-CODEX-APPROVAL-COMMAND",
+        "REQ-CODEX-APPROVAL-UI"
+      ],
+      "change_type": "add",
+      "before": [],
+      "after": [
+        {
+          "requirement_id": "REQ-CODEX-APPROVAL-COMMAND",
+          "title": "安全生成 Codex 全局免确认命令",
+          "description": "提供 macOS/Linux 与 Windows PowerShell 一次性命令；尊重 CODEX_HOME，备份并仅更新根级 approval_policy = \"never\"，保留其他 TOML 配置和沙箱设置，不执行命令。",
+          "criticality": "high",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-CODEX-APPROVAL-COMMAND"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-CODEX-APPROVAL-COMMAND"
+          ],
+          "test_case_ids": [
+            "TC-CODEX-APPROVAL-COMMAND"
+          ],
+          "normalized_sha256": "a1440c4259dfb01015d77a027b853e529120ae4d452b9a79867f3f940372ece5"
+        },
+        {
+          "requirement_id": "REQ-CODEX-APPROVAL-UI",
+          "title": "Codex 设置中的一键复制入口",
+          "description": "Codex 设置区仅展示适合当前系统的一条命令和一个复制按钮；复制后给出成功或失败反馈，不自动执行或写入 Codex 配置。",
+          "criticality": "high",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-CODEX-APPROVAL-UI"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-CODEX-APPROVAL-UI"
+          ],
+          "test_case_ids": [
+            "TC-CODEX-APPROVAL-UI"
+          ],
+          "normalized_sha256": "247952924904fa730a0f0e1b774c7d262199561d28ee512b780212b1bec03124"
+        }
+      ],
+      "reason": "用户要求在 AI Coding 加入单一复制命令入口；后续明确只需复制到剪贴板并自行执行，不需要软件自动修改 Codex 配置或额外供应商逻辑。",
+      "requested_by": "user",
+      "approved_by": null,
+      "impact": {
+        "risk_level": "medium",
+        "requirements": [
+          "新增 Codex 全局免确认命令和单一复制入口"
+        ],
+        "ui": [
+          "Codex 设置区新增一个复制按钮"
+        ],
+        "api": [
+          "无新 API"
+        ],
+        "database": [
+          "无数据库迁移"
+        ],
+        "files": [
+          "仅用户手动执行命令时修改 Codex config.toml"
+        ],
+        "permissions": [
+          "不自动提高沙箱权限"
+        ],
+        "tests": [
+          "新增命令与 UI 复制测试"
+        ],
+        "migration_required": false
+      },
+      "tests_to_update": [
+        "TC-CODEX-APPROVAL-COMMAND",
+        "TC-CODEX-APPROVAL-UI"
+      ],
+      "timestamp": "2026-10-03T08:20:17.396693Z",
+      "base_requirements_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "result_requirements_sha256": "114faa8ed4d37528c7a6922246f20e93109974f5536a5a8e94ccd3aa03f1108a"
+    },
+    {
+      "change_id": "CHANGE-CLAUDE-DUAL-20261021",
+      "requirement_ids": [
+        "REQ-CLAUDE-DUAL-ROOTS",
+        "REQ-CLAUDE-DUAL-WATCH",
+        "REQ-CLAUDE-GG-RESUME"
+      ],
+      "change_type": "add",
+      "before": [],
+      "after": [
+        {
+          "requirement_id": "REQ-CLAUDE-DUAL-ROOTS",
+          "title": "Claude 旧记录与专线双目录读取",
+          "description": "仅选择一个旧历史目录与一个当前 Claude GG 专线 projects 目录；旧默认目录缺失时回退最新 Claude-Code-archive-*/profile/projects。扫描、详情、全文搜索与文件状态使用一致边界；两个目录均可为空，记录不得改写。",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-CLAUDE-DUAL-ROOTS"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-CLAUDE-DUAL-ROOTS"
+          ],
+          "test_case_ids": [
+            "TC-CLAUDE-DUAL-ROOTS"
+          ],
+          "normalized_sha256": "9c4d06b9413a3e6d1b006347214b03dca72dc09a29cdbf2f845faec209bad948"
+        },
+        {
+          "requirement_id": "REQ-CLAUDE-DUAL-WATCH",
+          "title": "双目录新增记录刷新",
+          "description": "监听器覆盖相同的两处 Claude 历史根；启动时缺失的专线目录产生后可发现新记录，仍过滤子 Agent 与无关文件。",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-CLAUDE-DUAL-WATCH"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-CLAUDE-DUAL-WATCH"
+          ],
+          "test_case_ids": [
+            "TC-CLAUDE-DUAL-WATCH"
+          ],
+          "normalized_sha256": "884f0f051696baa818a93da7b146885f5d97791a18ecbdfb9b7def513216d9c9"
+        },
+        {
+          "requirement_id": "REQ-CLAUDE-GG-RESUME",
+          "title": "恢复会话遵守专线入口",
+          "description": "已安装当前专线时仅通过既有 claude-gg 入口恢复专线目录记录；旧归档完整可读，不能通过直接 claude 或更改专线配置绕过路由。",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-CLAUDE-GG-RESUME"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-CLAUDE-GG-RESUME"
+          ],
+          "test_case_ids": [
+            "TC-CLAUDE-GG-RESUME"
+          ],
+          "normalized_sha256": "a630991ff0393b44a9021a0bcded5a9147948fc13934a16d9205af37194ba35f"
+        }
+      ],
+      "reason": "用户要求先修复旧聊天与专线聊天双目录读取，再更新软件与 GitHub，成功后才清理本地项目。",
+      "requested_by": "user",
+      "approved_by": "user:conversation:2026-10-21",
+      "impact": {
+        "risk_level": "medium",
+        "requirements": [
+          "补充双目录读取、刷新与专线恢复"
+        ],
+        "ui": [
+          "现有会话页保留"
+        ],
+        "api": [
+          "现有本地会话命令扩展来源"
+        ],
+        "database": [
+          "无迁移"
+        ],
+        "files": [
+          "只读两个历史来源"
+        ],
+        "permissions": [
+          "沿用并验证规范路径边界"
+        ],
+        "tests": [
+          "隔离临时 JSONL 与真实目录元数据核对"
+        ],
+        "migration_required": false
+      },
+      "tests_to_update": [
+        "TC-CLAUDE-DUAL-ROOTS",
+        "TC-CLAUDE-DUAL-WATCH",
+        "TC-CLAUDE-GG-RESUME"
+      ],
+      "timestamp": "2026-10-22T03:51:34.070356Z",
+      "base_requirements_sha256": "114faa8ed4d37528c7a6922246f20e93109974f5536a5a8e94ccd3aa03f1108a",
+      "result_requirements_sha256": "24d17793047385dd5e7afeb2bc7453187fefaad42e5fe5eb1676ff2bd145515e"
+    },
+    {
+      "change_id": "CHANGE-GG-CUSTOMER-RESUME-20261030",
+      "requirement_ids": [
+        "REQ-CLAUDE-DUAL-ROOTS",
+        "REQ-CLAUDE-DUAL-WATCH",
+        "REQ-CLAUDE-GG-RESUME"
+      ],
+      "change_type": "scope_expand",
+      "before": [
+        {
+          "requirement_id": "REQ-CLAUDE-DUAL-ROOTS",
+          "title": "Claude 旧记录与专线双目录读取",
+          "description": "仅选择一个旧历史目录与一个当前 Claude GG 专线 projects 目录；旧默认目录缺失时回退最新 Claude-Code-archive-*/profile/projects。扫描、详情、全文搜索与文件状态使用一致边界；两个目录均可为空，记录不得改写。",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-CLAUDE-DUAL-ROOTS"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-CLAUDE-DUAL-ROOTS"
+          ],
+          "test_case_ids": [
+            "TC-CLAUDE-DUAL-ROOTS"
+          ],
+          "normalized_sha256": "9c4d06b9413a3e6d1b006347214b03dca72dc09a29cdbf2f845faec209bad948"
+        },
+        {
+          "requirement_id": "REQ-CLAUDE-DUAL-WATCH",
+          "title": "双目录新增记录刷新",
+          "description": "监听器覆盖相同的两处 Claude 历史根；启动时缺失的专线目录产生后可发现新记录，仍过滤子 Agent 与无关文件。",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-CLAUDE-DUAL-WATCH"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-CLAUDE-DUAL-WATCH"
+          ],
+          "test_case_ids": [
+            "TC-CLAUDE-DUAL-WATCH"
+          ],
+          "normalized_sha256": "884f0f051696baa818a93da7b146885f5d97791a18ecbdfb9b7def513216d9c9"
+        },
+        {
+          "requirement_id": "REQ-CLAUDE-GG-RESUME",
+          "title": "恢复会话遵守专线入口",
+          "description": "已安装当前专线时仅通过既有 claude-gg 入口恢复专线目录记录；旧归档完整可读，不能通过直接 claude 或更改专线配置绕过路由。",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-CLAUDE-GG-RESUME"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-CLAUDE-GG-RESUME"
+          ],
+          "test_case_ids": [
+            "TC-CLAUDE-GG-RESUME"
+          ],
+          "normalized_sha256": "a630991ff0393b44a9021a0bcded5a9147948fc13934a16d9205af37194ba35f"
+        }
+      ],
+      "after": [
+        {
+          "requirement_id": "REQ-CLAUDE-DUAL-ROOTS",
+          "title": "Claude 旧记录与专线双目录读取",
+          "description": "只读发现一个旧历史来源和实际安装的站长版、客户版 Claude GG projects 来源。客户版使用 .claude-gg-client/config.private.json 的 profile，站长版保持现有路径；默认配置缺失时沿用各自默认 profile。相同规范路径去重；旧默认目录缺失仍回退原归档策略。扫描、详情、全文搜索、文件状态使用相同边界，不修改历史或认证。",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-CLAUDE-DUAL-ROOTS"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-CLAUDE-DUAL-ROOTS"
+          ],
+          "test_case_ids": [
+            "TC-CLAUDE-DUAL-ROOTS"
+          ],
+          "normalized_sha256": "c83937d5c8cb3b01a9553944d44639967d624542d756048e6f8a8327fa3660d7"
+        },
+        {
+          "requirement_id": "REQ-CLAUDE-DUAL-WATCH",
+          "title": "双目录新增记录刷新",
+          "description": "监听器覆盖相同的旧历史与实际安装的站长/客户 Claude GG 历史根；启动时缺失根后来创建也可刷新，仍过滤子 Agent、无关文件和目录外事件。",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-CLAUDE-DUAL-WATCH"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-CLAUDE-DUAL-WATCH"
+          ],
+          "test_case_ids": [
+            "TC-CLAUDE-DUAL-WATCH"
+          ],
+          "normalized_sha256": "ae1175b68b32c33e05042ef9aaba66be39c99d0f02a995c852751bea5eae53d4"
+        },
+        {
+          "requirement_id": "REQ-CLAUDE-GG-RESUME",
+          "title": "恢复会话遵守专线入口",
+          "description": "恢复选中的原会话 UUID 与工作目录，并按其实际来源绑定站长或客户既有 claude-gg 包装入口。macOS 客户入口 .claude-gg-client/bin/claude-gg，Windows 客户入口 claude-gg.cmd。禁止新增 CLAUDE_CONFIG_DIR、替换登录目录、复制认证、调用裸 claude 或回退其他 GG 安装；缺失/非可执行/歧义入口或非当前来源应明确拒绝。普通未安装 GG 的 Claude 与 Codex 恢复行为保持。",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-CLAUDE-GG-RESUME"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-CLAUDE-GG-RESUME"
+          ],
+          "test_case_ids": [
+            "TC-CLAUDE-GG-RESUME"
+          ],
+          "normalized_sha256": "70d2a3afad9448df8eb183be4ab5c5cc0b7bfd482081a8b72c580b7ab4e308aa"
+        }
+      ],
+      "reason": "用户明确要求解决 AI Coding 恢复 GG 会话出现 login 的兼容缺口；纳入客户版路径，不减弱专线和原历史保护。",
+      "requested_by": "user",
+      "approved_by": "user:conversation:2026-10-30-resume-login-fix",
+      "impact": {
+        "risk_level": "high",
+        "requirements": [
+          "增加客户版识别和来源绑定"
+        ],
+        "ui": [
+          "沿用会话页面、复制及恢复按钮"
+        ],
+        "api": [
+          "既有 prepare_session_resume 使用相同来源规则"
+        ],
+        "database": [
+          "无迁移"
+        ],
+        "files": [
+          "只读配置 profile 字段和原始 JSONL，不更改认证"
+        ],
+        "permissions": [
+          "保留规范路径与安全参数边界，异常不回退直连"
+        ],
+        "tests": [
+          "客户/站长/共存/自定义根/异常与 shell 入口验证"
+        ],
+        "migration_required": false
+      },
+      "tests_to_update": [
+        "TC-CLAUDE-DUAL-ROOTS",
+        "TC-CLAUDE-DUAL-WATCH",
+        "TC-CLAUDE-GG-RESUME"
+      ],
+      "timestamp": "2026-10-31T03:53:40.387658Z",
+      "base_requirements_sha256": "24d17793047385dd5e7afeb2bc7453187fefaad42e5fe5eb1676ff2bd145515e",
+      "result_requirements_sha256": "7aff5c904abdbdd1a78239d1ce57a7719ad1cf4b72f388a19c021e966838f8f5"
+    }
+  ],
+  "standard_version": "1.0.0"
+}

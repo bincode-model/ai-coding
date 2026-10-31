@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.codex/software-delivery-harness/1.0.0/evidence.schema.json",
+  "title": "Software Delivery Harness evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["standard_version", "run_id", "git_commit", "evidence"],
+  "properties": {
+    "standard_version": {"const": "1.0.0"},
+    "run_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "git_commit": {"type": ["string", "null"], "minLength": 1, "maxLength": 128},
+    "evidence": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/evidenceItem"}
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128,
+      "pattern": "^[A-Z][A-Z0-9_.-]*$"
+    },
+    "text": {"type": "string", "minLength": 1, "maxLength": 8192},
+    "idList": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/id"},
+      "uniqueItems": true
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "os", "details"],
+      "properties": {
+        "name": {"$ref": "#/$defs/text"},
+        "os": {"$ref": "#/$defs/text"},
+        "details": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/text"}
+        }
+      }
+    },
+    "evidenceItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidence_id", "execution_ids", "requirement_ids", "acceptance_criterion_ids",
+        "test_case_ids", "evidence_type", "path", "sha256", "command", "exit_code",
+        "started_at", "completed_at", "git_commit", "environment", "tool_version",
+        "result", "notes"
+      ],
+      "properties": {
+        "evidence_id": {"$ref": "#/$defs/id"},
+        "execution_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/id"},
+          "uniqueItems": true
+        },
+        "requirement_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/id"},
+          "uniqueItems": true
+        },
+        "acceptance_criterion_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/id"},
+          "uniqueItems": true
+        },
+        "test_case_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/id"},
+          "uniqueItems": true
+        },
+        "evidence_type": {
+          "enum": [
+            "test_report", "stdout", "stderr", "screenshot", "video",
+            "browser_trace", "network_log", "console_log", "api_transcript",
+            "database_snapshot", "file_artifact", "file_hash", "audit_log",
+            "coverage_report", "manual_observation", "blocker_record", "other"
+          ]
+        },
+        "path": {"type": "string", "minLength": 1, "maxLength": 2048},
+        "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "command": {"$ref": "#/$defs/text"},
+        "exit_code": {"type": "integer"},
+        "started_at": {"type": "string", "format": "date-time"},
+        "completed_at": {"type": "string", "format": "date-time"},
+        "git_commit": {"type": ["string", "null"], "minLength": 1, "maxLength": 128},
+        "environment": {"$ref": "#/$defs/environment"},
+        "tool_version": {"$ref": "#/$defs/text"},
+        "result": {"enum": ["PASS", "FAIL", "BLOCKED", "NOT_RUN"]},
+        "notes": {"type": "string", "maxLength": 8192}
+      }
+    }
+  }
+}
