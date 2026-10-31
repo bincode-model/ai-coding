@@ -92,7 +92,13 @@ pub(crate) fn claude_command_for_source(
         .filter(|root| {
             root.path
                 .canonicalize()
-                .map(|root| source.starts_with(root))
+                .ok()
+                .and_then(|root| {
+                    source
+                        .strip_prefix(root)
+                        .ok()
+                        .map(claude_roots::is_session_path)
+                })
                 .unwrap_or(false)
         })
         // A nested/aliased GG root must never be routed through ordinary Claude.
@@ -105,9 +111,44 @@ pub(crate) fn claude_command_for_source(
         .ok_or_else(|| "会话文件不属于当前 Claude 记录目录".to_string())?;
     match root.source {
         ClaudeSource::CurrentGg => {
-            let wrapper = claude_roots::gg_wrapper(home);
-            if !wrapper_available(&wrapper) {
-                return Err("当前 Claude GG 包装入口不可用，已停止恢复；完整记录仍可查看。".into());
+            // Re-read installation bindings even when callers retain an older
+            // discovery snapshot. Never select a wrapper by availability/order.
+            let mut matches = Vec::new();
+            for installation in claude_roots::gg_installations_for_home(home) {
+                let Ok(current_root) = installation.profile(home).join("projects").canonicalize()
+                else {
+                    continue;
+                };
+                if source
+                    .strip_prefix(&current_root)
+                    .map(claude_roots::is_session_path)
+                    .unwrap_or(false)
+                {
+                    matches.push((installation, current_root));
+                }
+            }
+            if matches.len() > 1 {
+                return Err("此会话同时属于站长版和客户版 Claude GG 的记录目录，入口归属有歧义，已停止恢复；请核对原安装，完整记录仍可查看。".into());
+            }
+            let stale_source = || "当前 Claude GG 记录目录已变化或来源不匹配，已停止恢复；请刷新列表并核对原安装，完整记录仍可查看。".to_string();
+            let (installation, current_root) = matches.pop().ok_or_else(stale_source)?;
+            if root.path.canonicalize().map_err(|_| stale_source())? != current_root {
+                return Err(stale_source());
+            }
+            let wrapper = installation.wrapper(home, windows);
+            if !wrapper_available(home, &wrapper, windows) {
+                return Err(format!(
+                    "当前{} Claude GG 包装入口不可用（缺失、非可执行或符号链接），已停止恢复；完整记录仍可查看。",
+                    installation.label()
+                ));
+            }
+            let verified_root = installation
+                .resume_profile(home)?
+                .join("projects")
+                .canonicalize()
+                .map_err(|_| stale_source())?;
+            if verified_root != current_root {
+                return Err(stale_source());
             }
             Ok(build_gg_command(&wrapper, session_id, windows))
         }
@@ -124,7 +165,31 @@ pub(crate) fn claude_command_for_source(
     }
 }
 
-fn wrapper_available(path: &Path) -> bool {
+fn wrapper_available(home: &Path, path: &Path, windows: bool) -> bool {
+    if !path.is_absolute() {
+        return false;
+    }
+    // Do not follow an installation/bin symlink into a different installation.
+    // Ancestors of HOME may legitimately be aliases (e.g. /var on macOS).
+    let Some(relative_parent) = path
+        .parent()
+        .and_then(|parent| parent.strip_prefix(home).ok())
+    else {
+        return false;
+    };
+    let mut parent = home.to_path_buf();
+    for component in relative_parent.components() {
+        let std::path::Component::Normal(name) = component else {
+            return false;
+        };
+        parent.push(name);
+        if !std::fs::symlink_metadata(&parent)
+            .map(|metadata| metadata.is_dir() && !metadata.file_type().is_symlink())
+            .unwrap_or(false)
+        {
+            return false;
+        }
+    }
     let Ok(metadata) = std::fs::symlink_metadata(path) else {
         return false;
     };
@@ -134,10 +199,11 @@ fn wrapper_available(path: &Path) -> bool {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        metadata.permissions().mode() & 0o111 != 0
+        windows || metadata.permissions().mode() & 0o111 != 0
     }
     #[cfg(not(unix))]
     {
+        let _ = windows;
         true
     }
 }
