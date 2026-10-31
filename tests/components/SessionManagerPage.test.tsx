@@ -143,6 +143,7 @@ describe("SessionManagerPage", () => {
   });
 
   beforeEach(() => {
+    vi.spyOn(platform, "isWindows").mockReturnValue(false);
     toastSuccessMock.mockReset();
     toastErrorMock.mockReset();
     Element.prototype.scrollIntoView = vi.fn();
@@ -358,7 +359,7 @@ describe("SessionManagerPage", () => {
     expect(toastSuccessMock).not.toHaveBeenCalled();
   });
 
-  it("copies only the prepared command when Mac terminal launch fails and reports the launch error", async () => {
+  it("copies the prepared command with cwd when Mac terminal launch fails and reports the launch error", async () => {
     vi.spyOn(platform, "isMac").mockReturnValue(true);
     const user = userEvent.setup();
     const copySpy = vi
@@ -385,7 +386,9 @@ describe("SessionManagerPage", () => {
       ]),
     );
     expect(launchSpy.mock.calls).toEqual([[prepared]]);
-    expect(copySpy.mock.calls).toEqual([[prepared.command]]);
+    expect(copySpy.mock.calls).toEqual([
+      [`cd -- '${prepared.cwd}' && ${prepared.command}`],
+    ]);
     expect(toastSuccessMock.mock.calls).toEqual([
       ["sessionManager.resumeFallbackCopied"],
     ]);
@@ -423,7 +426,9 @@ describe("SessionManagerPage", () => {
 
       await waitFor(() =>
         expect(copySpy.mock.calls).toEqual([
-          [`${providerId} --resume verified-copy-session`],
+          [
+            `cd -- '/prepared/copy project' && ${providerId} --resume verified-copy-session`,
+          ],
         ]),
       );
       expect(prepareSpy.mock.calls).toEqual([
@@ -440,6 +445,57 @@ describe("SessionManagerPage", () => {
         ["sessionManager.resumeCommandCopied"],
       ]);
       expect(toastErrorMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    { mac: false, windows: false, action: "复制命令", failTerminal: false },
+    { mac: false, windows: true, action: "复制命令", failTerminal: false },
+    { mac: true, windows: false, action: "恢复会话", failTerminal: true },
+  ])(
+    "keeps the selected GG launcher and cwd in clipboard path $action on Windows $windows",
+    async ({ mac, windows, action, failTerminal }) => {
+      vi.spyOn(platform, "isMac").mockReturnValue(mac);
+      vi.spyOn(platform, "isWindows").mockReturnValue(windows);
+      const user = userEvent.setup();
+      const copySpy = vi
+        .spyOn(navigator.clipboard, "writeText")
+        .mockResolvedValue();
+      const command = windows
+        ? "& 'C:\\GG\\bin\\claude-gg.cmd' --resume 'selected-gg-session'"
+        : "'/customer/.claude-gg-client/bin/claude-gg' --resume 'selected-gg-session'";
+      const cwd = windows
+        ? "C:\\customer\\project' name"
+        : "/customer/project' name";
+      const prepareSpy = vi
+        .spyOn(sessionsApi, "prepareResume")
+        .mockResolvedValue({ command, cwd });
+      const launchSpy = vi.spyOn(sessionsApi, "launchTerminal");
+      if (failTerminal)
+        launchSpy.mockRejectedValue(new Error("native terminal failed"));
+      else launchSpy.mockResolvedValue(true);
+      renderPage("claude");
+      await user.click(
+        await screen.findByRole("button", { name: /Claude Session/ }),
+      );
+      await user.click(screen.getByRole("button", { name: action }));
+      await waitFor(() => expect(copySpy).toHaveBeenCalledTimes(1));
+      const copied = copySpy.mock.calls[0][0];
+      expect(copied).toContain(command);
+      expect(copied).toContain(
+        windows
+          ? "Set-Location -LiteralPath 'C:\\customer\\project'' name' -ErrorAction Stop"
+          : "cd -- '/customer/project'\\'' name' && ",
+      );
+      expect(copied).not.toContain("CLAUDE_CONFIG_DIR");
+      expect(prepareSpy).toHaveBeenCalledWith({
+        providerId: "claude",
+        sessionId: "claude-session-1",
+        sourcePath: "/mock/claude/session-1.jsonl",
+      });
+      expect(launchSpy).toHaveBeenCalledTimes(failTerminal ? 1 : 0);
+      if (failTerminal)
+        expect(launchSpy).toHaveBeenCalledWith({ command, cwd });
     },
   );
 
