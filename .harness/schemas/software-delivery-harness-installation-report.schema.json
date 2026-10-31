@@ -1,0 +1,363 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/software-delivery-harness/installation-report.schema.json",
+  "title": "Software Delivery Harness installation report",
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "status": {"enum": ["PASS", "FAIL", "BLOCKED", "NOT_RUN"]},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "gitCommit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "bytes": {"type": "integer", "minimum": 0}
+      },
+      "required": ["path", "sha256", "bytes"]
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": {"$ref": "#/$defs/status"},
+        "summary": {"type": "string", "minLength": 1},
+        "evidence": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/artifact"},
+          "minItems": 1
+        }
+      },
+      "required": ["status", "summary", "evidence"]
+    },
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "status": {"$ref": "#/$defs/status"},
+        "critical": {"type": "boolean"},
+        "reason": {"type": "string", "minLength": 1}
+      },
+      "required": ["id", "status", "critical", "reason"]
+    },
+    "hook": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": {"$ref": "#/$defs/status"},
+        "recognized": {"type": "boolean"},
+        "enabled": {"type": "boolean"},
+        "trusted": {"type": "boolean"},
+        "trust_status": {"type": "string", "minLength": 1},
+        "source_path": {"type": "string", "minLength": 1},
+        "command": {"type": "string", "minLength": 1},
+        "current_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "matcher": {"type": ["string", "null"]}
+      },
+      "required": [
+        "status", "recognized", "enabled", "trusted", "trust_status",
+        "source_path", "command", "current_hash", "matcher"
+      ]
+    },
+    "passHook": {
+      "properties": {
+        "status": {"const": "PASS"},
+        "recognized": {"const": true},
+        "enabled": {"const": true},
+        "trusted": {"const": true},
+        "trust_status": {"const": "trusted"}
+      }
+    },
+    "selftest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": {"$ref": "#/$defs/status"},
+        "run_id": {"type": "string", "pattern": "^SELFTEST-[A-Za-z0-9-]+$"},
+        "overall_status": {"$ref": "#/$defs/status"},
+        "release_allowed": {"type": "boolean"},
+        "total": {"type": "integer", "minimum": 0},
+        "passed": {"type": "integer", "minimum": 0},
+        "failed": {"type": "integer", "minimum": 0},
+        "blocked": {"type": "integer", "minimum": 0},
+        "completed_at": {"type": "string", "format": "date-time"},
+        "runner_path": {"type": "string", "minLength": 1},
+        "artifact": {"$ref": "#/$defs/artifact"}
+      },
+      "required": [
+        "status", "run_id", "overall_status", "release_allowed", "total",
+        "passed", "failed", "blocked", "completed_at", "runner_path", "artifact"
+      ]
+    },
+    "passSelftest": {
+      "properties": {
+        "status": {"const": "PASS"},
+        "overall_status": {"const": "PASS"},
+        "release_allowed": {"const": true},
+        "total": {"minimum": 1},
+        "passed": {"minimum": 1},
+        "failed": {"const": 0},
+        "blocked": {"const": 0}
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "status": {"$ref": "#/$defs/status"},
+        "detail": {"type": "string", "minLength": 1}
+      },
+      "required": ["id", "status", "detail"]
+    },
+    "passRelease": {
+      "properties": {
+        "status": {"const": "PASS"},
+        "overall_status": {"const": "PASS"},
+        "release_allowed": {"const": true},
+        "failures": {"maxItems": 0},
+        "blockers": {"maxItems": 0},
+        "not_run_items": {"maxItems": 0},
+        "verified_evidence": {"minimum": 1},
+        "total_evidence": {"minimum": 1}
+      }
+    }
+  },
+  "properties": {
+    "$schema": {"const": "software-delivery-harness-installation-report.schema.json"},
+    "schema_version": {"const": "2.0.0"},
+    "report_id": {"type": "string", "pattern": "^INSTALL-[A-Za-z0-9-]+$"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "installation_status": {"$ref": "#/$defs/status"},
+    "installation_complete": {"type": "boolean"},
+    "release_allowed": {"type": "boolean"},
+    "verdict": {
+      "enum": [
+        "Harness installation: PASS",
+        "Harness installation: FAIL",
+        "Harness installation: BLOCKED",
+        "Harness installation: NOT_RUN"
+      ]
+    },
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "root": {"type": "string", "minLength": 1},
+        "git_head": {"$ref": "#/$defs/gitCommit"},
+        "git_clean": {"type": "boolean"},
+        "commit_time": {"type": "string", "format": "date-time"}
+      },
+      "required": ["root", "git_head", "git_clean", "commit_time"]
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "generator": {"$ref": "#/$defs/artifact"},
+        "schema": {"$ref": "#/$defs/artifact"}
+      },
+      "required": ["generator", "schema"]
+    },
+    "components": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "canonical_skill": {"$ref": "#/$defs/component"},
+        "project_harness": {"$ref": "#/$defs/component"},
+        "specialist_agents": {"$ref": "#/$defs/component"},
+        "authorization_launcher": {"$ref": "#/$defs/component"},
+        "hooks": {"$ref": "#/$defs/component"},
+        "selftests": {"$ref": "#/$defs/component"},
+        "ci_gate": {"$ref": "#/$defs/component"},
+        "current_release": {"$ref": "#/$defs/component"}
+      },
+      "required": [
+        "canonical_skill", "project_harness", "specialist_agents",
+        "authorization_launcher", "hooks", "selftests", "ci_gate", "current_release"
+      ]
+    },
+    "hooks": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "PreToolUse": {"$ref": "#/$defs/hook"},
+        "SubagentStart": {"$ref": "#/$defs/hook"},
+        "SubagentStop": {"$ref": "#/$defs/hook"},
+        "Stop": {"$ref": "#/$defs/hook"}
+      },
+      "required": ["PreToolUse", "SubagentStart", "SubagentStop", "Stop"]
+    },
+    "selftests": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": {"$ref": "#/$defs/status"},
+        "project": {"$ref": "#/$defs/selftest"},
+        "canonical": {"$ref": "#/$defs/selftest"}
+      },
+      "required": ["status", "project", "canonical"]
+    },
+    "ci": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": {"$ref": "#/$defs/status"},
+        "workflow": {"$ref": "#/$defs/artifact"},
+        "local_validation_status": {"$ref": "#/$defs/status"},
+        "checks": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/check"},
+          "minItems": 4
+        },
+        "remote_execution": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "status": {"$ref": "#/$defs/status"},
+            "critical": {"type": "boolean"},
+            "reason": {"type": "string", "minLength": 1}
+          },
+          "required": ["status", "critical", "reason"]
+        }
+      },
+      "required": ["status", "workflow", "local_validation_status", "checks", "remote_execution"]
+    },
+    "current_release": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": {"$ref": "#/$defs/status"},
+        "run_id": {"type": "string", "pattern": "^RUN-[A-Za-z0-9-]+$"},
+        "report": {"$ref": "#/$defs/artifact"},
+        "git_commit": {"$ref": "#/$defs/gitCommit"},
+        "overall_status": {"$ref": "#/$defs/status"},
+        "release_allowed": {"type": "boolean"},
+        "completed_at": {"type": "string", "format": "date-time"},
+        "failures": {"type": "array"},
+        "blockers": {"type": "array"},
+        "not_run_items": {"type": "array"},
+        "verified_evidence": {"type": "integer", "minimum": 0},
+        "total_evidence": {"type": "integer", "minimum": 0}
+      },
+      "required": [
+        "status", "run_id", "report", "git_commit", "overall_status", "release_allowed",
+        "completed_at", "failures", "blockers", "not_run_items",
+        "verified_evidence", "total_evidence"
+      ]
+    },
+    "failures": {"type": "array", "items": {"$ref": "#/$defs/issue"}},
+    "blockers": {"type": "array", "items": {"$ref": "#/$defs/issue"}},
+    "critical_blockers": {"type": "array", "items": {"$ref": "#/$defs/issue"}},
+    "not_run_items": {"type": "array", "items": {"$ref": "#/$defs/issue"}},
+    "known_limitations": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    }
+  },
+  "required": [
+    "$schema", "schema_version", "report_id", "generated_at", "installation_status",
+    "installation_complete", "release_allowed", "verdict", "repository", "provenance", "components",
+    "hooks", "selftests", "ci", "current_release", "failures", "blockers",
+    "critical_blockers", "not_run_items", "known_limitations"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {"installation_status": {"const": "PASS"}},
+        "required": ["installation_status"]
+      },
+      "then": {
+        "properties": {
+          "installation_complete": {"const": true},
+          "release_allowed": {"const": true},
+          "verdict": {"const": "Harness installation: PASS"},
+          "repository": {"properties": {"git_clean": {"const": true}}},
+          "components": {
+            "properties": {
+              "canonical_skill": {"properties": {"status": {"const": "PASS"}}},
+              "project_harness": {"properties": {"status": {"const": "PASS"}}},
+              "specialist_agents": {"properties": {"status": {"const": "PASS"}}},
+              "authorization_launcher": {"properties": {"status": {"const": "PASS"}}},
+              "hooks": {"properties": {"status": {"const": "PASS"}}},
+              "selftests": {"properties": {"status": {"const": "PASS"}}},
+              "ci_gate": {"properties": {"status": {"const": "PASS"}}},
+              "current_release": {"properties": {"status": {"const": "PASS"}}}
+            }
+          },
+          "hooks": {
+            "properties": {
+              "PreToolUse": {"$ref": "#/$defs/passHook"},
+              "SubagentStart": {"$ref": "#/$defs/passHook"},
+              "SubagentStop": {"$ref": "#/$defs/passHook"},
+              "Stop": {"$ref": "#/$defs/passHook"}
+            }
+          },
+          "selftests": {
+            "properties": {
+              "status": {"const": "PASS"},
+              "project": {"$ref": "#/$defs/passSelftest"},
+              "canonical": {"$ref": "#/$defs/passSelftest"}
+            }
+          },
+          "ci": {
+            "properties": {
+              "status": {"const": "PASS"},
+              "local_validation_status": {"const": "PASS"},
+              "checks": {"items": {"properties": {"status": {"const": "PASS"}}}}
+            }
+          },
+          "current_release": {"$ref": "#/$defs/passRelease"},
+          "failures": {"maxItems": 0},
+          "blockers": {"maxItems": 0},
+          "critical_blockers": {"maxItems": 0}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"installation_status": {"const": "FAIL"}},
+        "required": ["installation_status"]
+      },
+      "then": {
+        "properties": {
+          "installation_complete": {"const": false},
+          "release_allowed": {"const": false},
+          "verdict": {"const": "Harness installation: FAIL"},
+          "failures": {"minItems": 1}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"installation_status": {"const": "BLOCKED"}},
+        "required": ["installation_status"]
+      },
+      "then": {
+        "properties": {
+          "installation_complete": {"const": false},
+          "release_allowed": {"const": false},
+          "verdict": {"const": "Harness installation: BLOCKED"},
+          "critical_blockers": {"minItems": 1}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"installation_status": {"const": "NOT_RUN"}},
+        "required": ["installation_status"]
+      },
+      "then": {
+        "properties": {
+          "installation_complete": {"const": false},
+          "release_allowed": {"const": false},
+          "verdict": {"const": "Harness installation: NOT_RUN"},
+          "not_run_items": {"minItems": 1}
+        }
+      }
+    }
+  ]
+}

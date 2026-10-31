@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.codex/software-delivery-harness/1.0.0/acceptance-result.schema.json",
+  "title": "Software Delivery Harness acceptance results",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["standard_version", "run_id", "git_commit", "acceptance_results"],
+  "properties": {
+    "standard_version": {"const": "1.0.0"},
+    "run_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "git_commit": {"type": ["string", "null"], "minLength": 1, "maxLength": 128},
+    "acceptance_results": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/result"}
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128,
+      "pattern": "^[A-Z][A-Z0-9_.-]*$"
+    },
+    "idList": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/id"},
+      "uniqueItems": true
+    },
+    "textList": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1, "maxLength": 4096},
+      "uniqueItems": true
+    },
+    "verifier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agent_id", "role", "independent_of_implementation"],
+      "properties": {
+        "agent_id": {"type": "string", "minLength": 1, "maxLength": 256},
+        "role": {
+          "enum": ["runtime_acceptance", "security_reviewer", "release_judge", "external"]
+        },
+        "independent_of_implementation": {"const": true}
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requirement_id", "status", "implementation_locations", "test_case_ids",
+        "evidence_ids", "verified_by", "verified_at", "failure_reason", "blocker",
+        "unverified_scope"
+      ],
+      "properties": {
+        "requirement_id": {"$ref": "#/$defs/id"},
+        "status": {"enum": ["PASS", "FAIL", "BLOCKED", "NOT_RUN"]},
+        "implementation_locations": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1, "maxLength": 2048},
+          "uniqueItems": true
+        },
+        "test_case_ids": {"$ref": "#/$defs/idList"},
+        "evidence_ids": {"$ref": "#/$defs/idList"},
+        "verified_by": {"$ref": "#/$defs/verifier"},
+        "verified_at": {"type": "string", "format": "date-time"},
+        "failure_reason": {"type": ["string", "null"], "maxLength": 8192},
+        "blocker": {"type": ["string", "null"], "maxLength": 8192},
+        "unverified_scope": {"$ref": "#/$defs/textList"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "PASS"}}, "required": ["status"]},
+          "then": {
+            "properties": {
+              "implementation_locations": {"minItems": 1},
+              "test_case_ids": {"minItems": 1},
+              "evidence_ids": {"minItems": 1},
+              "failure_reason": {"type": "null"},
+              "blocker": {"type": "null"},
+              "unverified_scope": {"maxItems": 0}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"status": {"const": "FAIL"}}, "required": ["status"]},
+          "then": {
+            "properties": {
+              "test_case_ids": {"minItems": 1},
+              "evidence_ids": {"minItems": 1},
+              "failure_reason": {"type": "string", "minLength": 1},
+              "blocker": {"type": "null"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"status": {"const": "BLOCKED"}}, "required": ["status"]},
+          "then": {
+            "properties": {
+              "blocker": {"type": "string", "minLength": 1},
+              "unverified_scope": {"minItems": 1}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"status": {"const": "NOT_RUN"}}, "required": ["status"]},
+          "then": {
+            "properties": {
+              "failure_reason": {"type": "null"},
+              "unverified_scope": {"minItems": 1}
+            }
+          }
+        }
+      ]
+    }
+  }
+}
