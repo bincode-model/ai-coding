@@ -1052,6 +1052,102 @@
         "status": null,
         "reason": "尚未运行验收"
       }
+    },
+    {
+      "trace_id": "TRACE-RELEASE-CI",
+      "requirement_id": "REQ-RELEASE-CI",
+      "acceptance_criterion_id": "AC-RELEASE-CI",
+      "implementation": {
+        "state": "LINKED",
+        "references": [
+          {
+            "id": "SRC-RELEASE-CI",
+            "path": ".github/workflows/harness-gate.yml",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": null
+      },
+      "frontend": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "仅检查环境和安装包核验，不改变应用界面、用户存储或运行权限"
+      },
+      "backend": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "验收后链接真实证据"
+      },
+      "storage": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "仅检查环境和安装包核验，不改变应用界面、用户存储或运行权限"
+      },
+      "permissions": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "仅检查环境和安装包核验，不改变应用界面、用户存储或运行权限"
+      },
+      "test_case_ids": [
+        "TC-CI-LINUX"
+      ],
+      "test_execution_ids": [],
+      "evidence_ids": [],
+      "final_verdict": {
+        "state": "PENDING",
+        "acceptance_result_requirement_id": null,
+        "status": null,
+        "reason": "本次尚未执行独立验收"
+      }
+    },
+    {
+      "trace_id": "TRACE-RELEASE-MACOS",
+      "requirement_id": "REQ-RELEASE-MACOS",
+      "acceptance_criterion_id": "AC-RELEASE-MACOS",
+      "implementation": {
+        "state": "LINKED",
+        "references": [
+          {
+            "id": "SRC-RELEASE-MACOS",
+            "path": "scripts/verify-macos-installer.py",
+            "symbol": null,
+            "line": null
+          }
+        ],
+        "reason": null
+      },
+      "frontend": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "仅检查环境和安装包核验，不改变应用界面、用户存储或运行权限"
+      },
+      "backend": {
+        "state": "PENDING",
+        "references": [],
+        "reason": "验收后链接真实证据"
+      },
+      "storage": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "仅检查环境和安装包核验，不改变应用界面、用户存储或运行权限"
+      },
+      "permissions": {
+        "state": "NOT_APPLICABLE",
+        "references": [],
+        "reason": "仅检查环境和安装包核验，不改变应用界面、用户存储或运行权限"
+      },
+      "test_case_ids": [
+        "TC-MACOS-PACKAGE"
+      ],
+      "test_execution_ids": [],
+      "evidence_ids": [],
+      "final_verdict": {
+        "state": "PENDING",
+        "acceptance_result_requirement_id": null,
+        "status": null,
+        "reason": "本次尚未执行独立验收"
+      }
     }
   ]
 }

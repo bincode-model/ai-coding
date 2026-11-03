@@ -270,7 +270,7 @@
       "expected_results": [
         {
           "step_no": 1,
-          "expected": "修改、测试和安装包留在本地，不 push、发布 Release 或同步 GitHub。"
+          "expected": "默认修改、测试和安装包留在本地；只有用户后续明确授权时才可同步指定 GitHub 仓库或准备发布，仍保留发布门禁，不上传聊天、登录、密钥或个人配置。"
         }
       ],
       "environment": {
@@ -639,7 +639,7 @@
       "expected_results": [
         {
           "step_no": 1,
-          "expected": "Build and replace local AI Coding with backups; no GitHub push or release without later user confirmation."
+          "expected": "本地构建和替换需保留备份；后续明确授权才可同步指定 GitHub 仓库和准备安装包发布，保留发布门禁，不自动批量更新客户。"
         }
       ],
       "environment": {
@@ -876,6 +876,88 @@
       },
       "data_fixture": [],
       "automation_path": "src-tauri/src/session_manager/claude_dual_roots_tests.rs",
+      "is_mocked": false,
+      "criticality": "critical"
+    },
+    {
+      "test_case_id": "TC-CI-LINUX",
+      "requirement_ids": [
+        "REQ-RELEASE-CI"
+      ],
+      "acceptance_criterion_ids": [
+        "AC-RELEASE-CI"
+      ],
+      "contract_ids": [],
+      "test_type": "integration",
+      "preconditions": [
+        "只使用隔离测试数据；不执行用户原会话或付费推理"
+      ],
+      "steps": [
+        {
+          "step_no": 1,
+          "action": "可复现的 Linux 检查环境",
+          "input": null
+        }
+      ],
+      "expected_results": [
+        {
+          "step_no": 1,
+          "expected": "GitHub Linux 检查安装官方 Tauri 系统依赖及项目声明的 Node、pnpm 和 Rust 工具链，真实执行构建与回归，保留失败和严格发布门禁；不使用假成功、跳过失败或降低验收。"
+        }
+      ],
+      "environment": {
+        "name": "local-macos",
+        "os": "macOS arm64",
+        "services": [
+          "Tauri",
+          "Vitest"
+        ],
+        "variables": [],
+        "secrets_redacted": true
+      },
+      "data_fixture": [],
+      "automation_path": ".github/workflows/harness-gate.yml",
+      "is_mocked": false,
+      "criticality": "critical"
+    },
+    {
+      "test_case_id": "TC-MACOS-PACKAGE",
+      "requirement_ids": [
+        "REQ-RELEASE-MACOS"
+      ],
+      "acceptance_criterion_ids": [
+        "AC-RELEASE-MACOS"
+      ],
+      "contract_ids": [],
+      "test_type": "file",
+      "preconditions": [
+        "只使用隔离测试数据；不执行用户原会话或付费推理"
+      ],
+      "steps": [
+        {
+          "step_no": 1,
+          "action": "核验 macOS 安装包及发布边界",
+          "input": null
+        }
+      ],
+      "expected_results": [
+        {
+          "step_no": 1,
+          "expected": "发布前核对 3.22.7 DMG 完整性、只读挂载内容、版本与源码构建记录和本机试用版摘要；不打包客户聊天、登录、密钥或个人配置；明确签名、公证、待测平台和整体门禁状态。"
+        }
+      ],
+      "environment": {
+        "name": "local-macos",
+        "os": "macOS arm64",
+        "services": [
+          "Tauri",
+          "Vitest"
+        ],
+        "variables": [],
+        "secrets_redacted": true
+      },
+      "data_fixture": [],
+      "automation_path": "scripts/verify-macos-installer.py",
       "is_mocked": false,
       "criticality": "critical"
     }

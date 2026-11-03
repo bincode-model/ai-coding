@@ -329,6 +329,201 @@
       "timestamp": "2026-10-31T03:53:40.387658Z",
       "base_requirements_sha256": "24d17793047385dd5e7afeb2bc7453187fefaad42e5fe5eb1676ff2bd145515e",
       "result_requirements_sha256": "7aff5c904abdbdd1a78239d1ce57a7719ad1cf4b72f388a19c021e966838f8f5"
+    },
+    {
+      "change_id": "CHANGE-RELEASE-RECONCILE-20261103",
+      "requirement_ids": [
+        "REQ-RELEASE-CI",
+        "REQ-RELEASE-MACOS"
+      ],
+      "change_type": "add",
+      "before": [],
+      "after": [
+        {
+          "requirement_id": "REQ-RELEASE-CI",
+          "title": "可复现的 Linux 检查环境",
+          "description": "GitHub Linux 检查安装官方 Tauri 系统依赖及项目声明的 Node、pnpm 和 Rust 工具链，真实执行构建与回归，保留失败和严格发布门禁；不使用假成功、跳过失败或降低验收。",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-RELEASE-CI"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-RELEASE-CI"
+          ],
+          "test_case_ids": [
+            "TC-CI-LINUX"
+          ],
+          "normalized_sha256": "77eb41f16495118de7bd930989417e20485535deeec25d5202b3ec205330edd7"
+        },
+        {
+          "requirement_id": "REQ-RELEASE-MACOS",
+          "title": "核验 macOS 安装包及发布边界",
+          "description": "发布前核对 3.22.7 DMG 完整性、只读挂载内容、版本与源码构建记录和本机试用版摘要；不打包客户聊天、登录、密钥或个人配置；明确签名、公证、待测平台和整体门禁状态。",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-RELEASE-MACOS"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-RELEASE-MACOS"
+          ],
+          "test_case_ids": [
+            "TC-MACOS-PACKAGE"
+          ],
+          "normalized_sha256": "feda531e7843ae1098c43e027dee0bc5b33556e5e38bb1005341f666b2363cf2"
+        }
+      ],
+      "reason": "用户在核查后要求把 AI Coding GitHub 检查、源码和安装包同步收尾；保留已有全产品发布门禁和待验项。",
+      "requested_by": "user:2026-11-03",
+      "approved_by": "user:2026-11-03 好，那你也搞定一下",
+      "impact": {
+        "risk_level": "medium",
+        "requirements": [
+          "增加 CI 环境及 macOS 包核验的独立要求"
+        ],
+        "ui": [
+          "无界面变化"
+        ],
+        "api": [
+          "无应用 API 变化"
+        ],
+        "database": [
+          "无数据库变化"
+        ],
+        "files": [
+          "GitHub CI 与独立安装包验证脚本"
+        ],
+        "permissions": [
+          "不改本机网络和登录权限"
+        ],
+        "tests": [
+          "Linux 构建与回归、只读 DMG 核验"
+        ],
+        "migration_required": false
+      },
+      "tests_to_update": [
+        "TC-CI-LINUX",
+        "TC-MACOS-PACKAGE"
+      ],
+      "timestamp": "2026-11-03T11:10:44.493971+00:00",
+      "base_requirements_sha256": "7aff5c904abdbdd1a78239d1ce57a7719ad1cf4b72f388a19c021e966838f8f5",
+      "result_requirements_sha256": "8f8e34f9f06453afe720e5131d7eb07785bbe25823cd421f0926ece71eac723c"
+    },
+    {
+      "change_id": "CHANGE-USER-GITHUB-RECONCILE-20261103",
+      "requirement_ids": [
+        "REQ-LOCAL",
+        "REQ-TOOLCHECK-LOCALONLY"
+      ],
+      "change_type": "scope_expand",
+      "before": [
+        {
+          "requirement_id": "REQ-LOCAL",
+          "title": "本地验证等待发布",
+          "description": "修改、测试和安装包留在本地，不 push、发布 Release 或同步 GitHub。",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-LOCAL"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-LOCAL"
+          ],
+          "test_case_ids": [
+            "TC-LOCAL"
+          ],
+          "normalized_sha256": "f2fe02930f3a6f8a88e763aa7d3f7cdee81ae21343172abab67879f366e0c386"
+        },
+        {
+          "requirement_id": "REQ-TOOLCHECK-LOCALONLY",
+          "title": "Local update only",
+          "description": "Build and replace local AI Coding with backups; no GitHub push or release without later user confirmation.",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-TOOLCHECK-LOCALONLY"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-TOOLCHECK-LOCALONLY"
+          ],
+          "test_case_ids": [
+            "TC-TOOLCHECK-LOCALONLY"
+          ],
+          "normalized_sha256": "c3f5e6026c9e654c8ac5f7022500d1e35497c8700feae7f38f5ee698e85540d2"
+        }
+      ],
+      "after": [
+        {
+          "requirement_id": "REQ-LOCAL",
+          "title": "本地验证等待发布",
+          "description": "默认修改、测试和安装包留在本地；只有用户后续明确授权时才可同步指定 GitHub 仓库或准备发布，仍保留发布门禁，不上传聊天、登录、密钥或个人配置。",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-LOCAL"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-LOCAL"
+          ],
+          "test_case_ids": [
+            "TC-LOCAL"
+          ],
+          "normalized_sha256": "e0c941416560dff7b04e529b6178955deeab14671dcd064a35545d2af4b941d8"
+        },
+        {
+          "requirement_id": "REQ-TOOLCHECK-LOCALONLY",
+          "title": "Local update only",
+          "description": "本地构建和替换需保留备份；后续明确授权才可同步指定 GitHub 仓库和准备安装包发布，保留发布门禁，不自动批量更新客户。",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-TOOLCHECK-LOCALONLY"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-TOOLCHECK-LOCALONLY"
+          ],
+          "test_case_ids": [
+            "TC-TOOLCHECK-LOCALONLY"
+          ],
+          "normalized_sha256": "5b02f65375f1d97d2fd0bfb0a932e8b86593252559a5ef05c978d3b958db71c1"
+        }
+      ],
+      "reason": "用户在得知源码草稿和安装包未收尾后，明确回复“好，那你也搞定一下”；记录后续 GitHub 同步和安装包准备授权，保留所有全产品门禁与事实限制。",
+      "requested_by": "user:2026-11-03",
+      "approved_by": "user:2026-11-03 好，那你也搞定一下",
+      "impact": {
+        "risk_level": "medium",
+        "requirements": [
+          "后续明确授权触发 GitHub 同步；发布仍受门禁约束"
+        ],
+        "ui": [
+          "无变化"
+        ],
+        "api": [
+          "无变化"
+        ],
+        "database": [
+          "无变化"
+        ],
+        "files": [
+          "仅项目源码和干净安装包"
+        ],
+        "permissions": [
+          "不涉及专线、网络、登录或批量客户更新"
+        ],
+        "tests": [
+          "原本地保护测试保持；增加发布核验"
+        ],
+        "migration_required": false
+      },
+      "tests_to_update": [
+        "TC-LOCAL",
+        "TC-TOOLCHECK-LOCALONLY"
+      ],
+      "timestamp": "2026-11-03T11:16:43.192386+00:00",
+      "base_requirements_sha256": "8f8e34f9f06453afe720e5131d7eb07785bbe25823cd421f0926ece71eac723c",
+      "result_requirements_sha256": "89583be8b1a04b76741cde835f5fd4f341ef632f9db9997c59be74a4c331d48a"
     }
   ],
   "standard_version": "1.0.0"

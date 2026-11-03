@@ -322,7 +322,7 @@
       ],
       "node_type": "leaf",
       "title": "本地验证等待发布",
-      "description": "修改、测试和安装包留在本地，不 push、发布 Release 或同步 GitHub。",
+      "description": "默认修改、测试和安装包留在本地；只有用户后续明确授权时才可同步指定 GitHub 仓库或准备发布，仍保留发布门禁，不上传聊天、登录、密钥或个人配置。",
       "source": {
         "type": "user",
         "reference": "conversation:2026-09-15-session-repair"
@@ -342,7 +342,7 @@
           "criterion_id": "AC-LOCAL",
           "given": "已有本地会话及必要的隔离测试数据",
           "when": "本地验证等待发布",
-          "then": "修改、测试和安装包留在本地，不 push、发布 Release 或同步 GitHub。",
+          "then": "默认修改、测试和安装包留在本地；只有用户后续明确授权时才可同步指定 GitHub 仓库或准备发布，仍保留发布门禁，不上传聊天、登录、密钥或个人配置。",
           "criticality": "critical"
         }
       ],
@@ -356,7 +356,7 @@
       ],
       "assumptions": [],
       "created_at": "2026-09-15T05:41:11.146669+00:00",
-      "updated_at": "2026-09-15T05:41:11.146669+00:00"
+      "updated_at": "2026-11-03T11:16:43.192386+00:00"
     },
     {
       "requirement_id": "REQ-PERF",
@@ -736,7 +736,7 @@
       ],
       "node_type": "leaf",
       "title": "Local update only",
-      "description": "Build and replace local AI Coding with backups; no GitHub push or release without later user confirmation.",
+      "description": "本地构建和替换需保留备份；后续明确授权才可同步指定 GitHub 仓库和准备安装包发布，保留发布门禁，不自动批量更新客户。",
       "source": {
         "type": "user",
         "reference": "conversation:2026-09-18-tool-versions"
@@ -756,7 +756,7 @@
           "criterion_id": "AC-TOOLCHECK-LOCALONLY",
           "given": "Installed app and isolated test fixtures",
           "when": "Local update only",
-          "then": "Build and replace local AI Coding with backups; no GitHub push or release without later user confirmation.",
+          "then": "本地构建和替换需保留备份；后续明确授权才可同步指定 GitHub 仓库和准备安装包发布，保留发布门禁，不自动批量更新客户。",
           "criticality": "critical"
         }
       ],
@@ -770,7 +770,7 @@
       ],
       "assumptions": [],
       "created_at": "2026-09-17T17:16:10.770165+00:00",
-      "updated_at": "2026-09-17T17:16:10.770165+00:00"
+      "updated_at": "2026-11-03T11:16:43.192386+00:00"
     },
     {
       "requirement_id": "REQ-CODEX-APPROVAL-COMMAND",
@@ -998,6 +998,102 @@
       "assumptions": [],
       "created_at": "2026-10-22T03:51:34.070356Z",
       "updated_at": "2026-10-31T03:53:40.387658+00:00"
+    },
+    {
+      "requirement_id": "REQ-RELEASE-CI",
+      "parent_id": "REQ-SESSIONS",
+      "level": 2,
+      "category_path": [
+        "REQ-SESSIONS",
+        "REQ-RELEASE-CI"
+      ],
+      "node_type": "leaf",
+      "title": "可复现的 Linux 检查环境",
+      "description": "GitHub Linux 检查安装官方 Tauri 系统依赖及项目声明的 Node、pnpm 和 Rust 工具链，真实执行构建与回归，保留失败和严格发布门禁；不使用假成功、跳过失败或降低验收。",
+      "source": {
+        "type": "user",
+        "reference": "conversation:2026-11-03-aicoding-release-reconcile"
+      },
+      "priority": "P0",
+      "criticality": "critical",
+      "actors": [
+        "本机用户"
+      ],
+      "permissions": [],
+      "ui_contract": [],
+      "api_contract": [],
+      "database_contract": [],
+      "file_contract": [],
+      "acceptance_criteria": [
+        {
+          "criterion_id": "AC-RELEASE-CI",
+          "given": "源码和本机已安装 3.22.7、GitHub 草稿修复分支和旧包均可核验",
+          "when": "可复现的 Linux 检查环境",
+          "then": "GitHub Linux 检查安装官方 Tauri 系统依赖及项目声明的 Node、pnpm 和 Rust 工具链，真实执行构建与回归，保留失败和严格发布门禁；不使用假成功、跳过失败或降低验收。",
+          "criticality": "critical"
+        }
+      ],
+      "test_case_ids": [
+        "TC-CI-LINUX"
+      ],
+      "dependencies": [
+        "REQ-CLAUDE-GG-RESUME"
+      ],
+      "out_of_scope": [
+        "不修改 Claude GG、Clash、DNS、系统代理、用户聊天和登录资料",
+        "不以范围测试冒充全产品发布门禁通过"
+      ],
+      "assumptions": [],
+      "created_at": "2026-11-03T11:10:44.493971+00:00",
+      "updated_at": "2026-11-03T11:10:44.493971+00:00"
+    },
+    {
+      "requirement_id": "REQ-RELEASE-MACOS",
+      "parent_id": "REQ-SESSIONS",
+      "level": 2,
+      "category_path": [
+        "REQ-SESSIONS",
+        "REQ-RELEASE-MACOS"
+      ],
+      "node_type": "leaf",
+      "title": "核验 macOS 安装包及发布边界",
+      "description": "发布前核对 3.22.7 DMG 完整性、只读挂载内容、版本与源码构建记录和本机试用版摘要；不打包客户聊天、登录、密钥或个人配置；明确签名、公证、待测平台和整体门禁状态。",
+      "source": {
+        "type": "user",
+        "reference": "conversation:2026-11-03-aicoding-release-reconcile"
+      },
+      "priority": "P0",
+      "criticality": "critical",
+      "actors": [
+        "本机用户"
+      ],
+      "permissions": [],
+      "ui_contract": [],
+      "api_contract": [],
+      "database_contract": [],
+      "file_contract": [],
+      "acceptance_criteria": [
+        {
+          "criterion_id": "AC-RELEASE-MACOS",
+          "given": "源码和本机已安装 3.22.7、GitHub 草稿修复分支和旧包均可核验",
+          "when": "核验 macOS 安装包及发布边界",
+          "then": "发布前核对 3.22.7 DMG 完整性、只读挂载内容、版本与源码构建记录和本机试用版摘要；不打包客户聊天、登录、密钥或个人配置；明确签名、公证、待测平台和整体门禁状态。",
+          "criticality": "critical"
+        }
+      ],
+      "test_case_ids": [
+        "TC-MACOS-PACKAGE"
+      ],
+      "dependencies": [
+        "REQ-CLAUDE-GG-RESUME"
+      ],
+      "out_of_scope": [
+        "不修改 Claude GG、Clash、DNS、系统代理、用户聊天和登录资料",
+        "不以范围测试冒充全产品发布门禁通过"
+      ],
+      "assumptions": [],
+      "created_at": "2026-11-03T11:10:44.493971+00:00",
+      "updated_at": "2026-11-03T11:10:44.493971+00:00"
     }
   ]
 }
