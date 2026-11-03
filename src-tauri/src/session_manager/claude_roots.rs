@@ -24,6 +24,102 @@ pub(crate) struct ClaudeRoot {
     pub source: ClaudeSource,
 }
 
+/// Installation identity is kept separate from the deduplicated viewing roots.
+/// Two installations can point at the same history while using different auth.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum GgInstallation {
+    Owner,
+    Client,
+}
+
+impl GgInstallation {
+    fn config_dir(self, home: &Path) -> PathBuf {
+        home.join(match self {
+            Self::Owner => ".claude-gg-dmit-metered",
+            Self::Client => ".claude-gg-client",
+        })
+    }
+
+    fn config(self, home: &Path) -> PathBuf {
+        self.config_dir(home).join("config.private.json")
+    }
+
+    pub(crate) fn profile(self, home: &Path) -> PathBuf {
+        read_gg_profile(&self.config(home)).unwrap_or_else(|| self.config_dir(home).join("profile"))
+    }
+
+    /// A fallback is useful for discovering history, but cannot establish which
+    /// profile a customer's fixed-config launcher will actually use. Retain the
+    /// legacy owner's default only when its config is genuinely absent.
+    pub(crate) fn resume_profile(self, home: &Path) -> Result<PathBuf, String> {
+        let config = self.config(home);
+        if let Some(profile) = read_gg_profile(&config) {
+            return Ok(profile);
+        }
+        if self == Self::Owner
+            && std::fs::symlink_metadata(&config)
+                .err()
+                .map(|error| error.kind() == std::io::ErrorKind::NotFound)
+                .unwrap_or(false)
+        {
+            return Ok(self.config_dir(home).join("profile"));
+        }
+        Err(format!(
+            "无法确认{} Claude GG 配置中的当前记录目录，已停止恢复；请检查原安装，完整记录仍可查看。",
+            self.label()
+        ))
+    }
+
+    pub(crate) fn wrapper(self, home: &Path, windows: bool) -> PathBuf {
+        let wrapper = match self {
+            Self::Owner => gg_wrapper(home),
+            Self::Client => home.join(".claude-gg-client/bin/claude-gg"),
+        };
+        if windows {
+            wrapper.with_extension("cmd")
+        } else {
+            wrapper
+        }
+    }
+
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::Owner => "站长版",
+            Self::Client => "客户版",
+        }
+    }
+
+    fn installed(self, home: &Path) -> bool {
+        marker_present(&self.config_dir(home))
+            || marker_present(&self.wrapper(home, false))
+            || marker_present(&self.wrapper(home, true))
+            || (self == Self::Owner && marker_present(&home.join(".claude-gg-dmit")))
+    }
+}
+
+// Broken links and unreadable markers still indicate an incomplete GG install;
+// they must not enable a fallback through ordinary Claude and a different login.
+fn marker_present(path: &Path) -> bool {
+    match std::fs::symlink_metadata(path) {
+        Ok(_) => true,
+        Err(error) => error.kind() != std::io::ErrorKind::NotFound,
+    }
+}
+
+pub(crate) fn gg_installations_for_home(home: &Path) -> Vec<GgInstallation> {
+    let client_installed = GgInstallation::Client.installed(home);
+    let mut installations = Vec::new();
+    // Preserve the original two-root placeholder/watch behavior without adding
+    // a nonexistent owner installation on customer-only machines.
+    if !client_installed || GgInstallation::Owner.installed(home) {
+        installations.push(GgInstallation::Owner);
+    }
+    if client_installed {
+        installations.push(GgInstallation::Client);
+    }
+    installations
+}
+
 pub(crate) fn resolve() -> Vec<ClaudeRoot> {
     resolve_for_home(
         &crate::config::get_home_dir(),
@@ -35,9 +131,9 @@ pub(crate) fn paths(roots: &[ClaudeRoot]) -> Vec<PathBuf> {
     roots.iter().map(|root| root.path.clone()).collect()
 }
 
-/// Exactly two logical sources, even when their directories have not been
-/// created yet. Aliases of the same physical root collapse to the GG source so
-/// resume cannot accidentally take the ordinary Claude route.
+/// One legacy source plus the applicable GG installations, including missing
+/// history directories so the watcher can attach when they appear. Physical
+/// aliases collapse to a GG viewing source; resume separately checks ownership.
 pub(crate) fn resolve_for_home(home: &Path, configured_dir: &Path) -> Vec<ClaudeRoot> {
     let configured = configured_dir.join("projects");
     let legacy = if configured.is_dir() {
@@ -64,15 +160,29 @@ pub(crate) fn resolve_for_home(home: &Path, configured_dir: &Path) -> Vec<Claude
             }
         }
     };
-    let gg = ClaudeRoot {
-        path: current_gg_profile(home).join("projects"),
-        source: ClaudeSource::CurrentGg,
-    };
-    if comparable_path(&legacy.path) == comparable_path(&gg.path) {
-        vec![gg]
-    } else {
-        vec![legacy, gg]
+    let mut roots = vec![legacy];
+    for installation in gg_installations_for_home(home) {
+        let profile = match installation {
+            GgInstallation::Owner => current_gg_profile(home),
+            GgInstallation::Client => installation.profile(home),
+        };
+        let gg = ClaudeRoot {
+            path: profile.join("projects"),
+            source: ClaudeSource::CurrentGg,
+        };
+        let comparable = comparable_path(&gg.path);
+        if let Some(existing) = roots
+            .iter_mut()
+            .find(|root| comparable_path(&root.path) == comparable)
+        {
+            if existing.source != ClaudeSource::CurrentGg {
+                *existing = gg;
+            }
+        } else {
+            roots.push(gg);
+        }
     }
+    roots
 }
 
 fn latest_archive_projects(home: &Path) -> Option<PathBuf> {
@@ -100,8 +210,7 @@ fn latest_archive_projects(home: &Path) -> Option<PathBuf> {
 }
 
 pub(crate) fn current_gg_profile(home: &Path) -> PathBuf {
-    read_gg_profile(&home.join(".claude-gg-dmit-metered/config.private.json"))
-        .unwrap_or_else(|| home.join(".claude-gg-dmit-metered/profile"))
+    GgInstallation::Owner.profile(home)
 }
 
 /// Deserialize only the profile field. Never retain, report or log credentials
@@ -148,8 +257,7 @@ pub(crate) fn gg_wrapper(home: &Path) -> PathBuf {
 }
 
 pub(crate) fn gg_installed(home: &Path) -> bool {
-    std::fs::symlink_metadata(gg_wrapper(home)).is_ok()
-        || home.join(".claude-gg-dmit-metered").exists()
+    GgInstallation::Owner.installed(home) || GgInstallation::Client.installed(home)
 }
 
 pub(crate) fn is_ignored_directory(path: &Path) -> bool {

@@ -1,0 +1,102 @@
+{
+  "allowed_statuses": [
+    "PASS",
+    "FAIL",
+    "BLOCKED",
+    "NOT_RUN"
+  ],
+  "automatic_subagent_orchestration": true,
+  "baseline_required": true,
+  "checks": {
+    "api": {
+      "applicable": false,
+      "command": null,
+      "reason": "No project manifest or matching test command was detected during initialization."
+    },
+    "build": {
+      "applicable": true,
+      "command": "pnpm build",
+      "reason": "Detected package.json script build."
+    },
+    "database": {
+      "applicable": false,
+      "command": null,
+      "reason": "No project manifest or matching test command was detected during initialization."
+    },
+    "dependency_install": {
+      "applicable": true,
+      "command": "corepack enable && pnpm install --frozen-lockfile",
+      "reason": "Detected pnpm project."
+    },
+    "e2e": {
+      "applicable": false,
+      "command": null,
+      "reason": "No project manifest or matching test command was detected during initialization."
+    },
+    "file": {
+      "applicable": false,
+      "command": null,
+      "reason": "No project manifest or matching test command was detected during initialization."
+    },
+    "integration": {
+      "applicable": false,
+      "command": null,
+      "reason": "No project manifest or matching test command was detected during initialization."
+    },
+    "lint": {
+      "applicable": false,
+      "command": null,
+      "reason": "No project manifest or matching test command was detected during initialization."
+    },
+    "permission": {
+      "applicable": false,
+      "command": null,
+      "reason": "No project manifest or matching test command was detected during initialization."
+    },
+    "security": {
+      "applicable": false,
+      "command": null,
+      "reason": "No project manifest or matching test command was detected during initialization."
+    },
+    "type_check": {
+      "applicable": true,
+      "command": "pnpm typecheck",
+      "reason": "Detected package.json script typecheck."
+    },
+    "unit": {
+      "applicable": true,
+      "command": "pnpm test:unit",
+      "reason": "Detected package.json script test:unit."
+    }
+  },
+  "git_required": true,
+  "group_nodes_require_children": true,
+  "harness_name": "software-delivery-harness",
+  "harness_version": "1.0.0",
+  "heuristics": {
+    "exclude_paths": [
+      ".git",
+      ".harness/runs",
+      ".harness/backups",
+      "node_modules",
+      "vendor",
+      "dist",
+      "build",
+      ".venv",
+      "venv",
+      "__pycache__",
+      "src-tauri/target"
+    ],
+    "strict_unresolved_critical_findings": true
+  },
+  "project_name": "中国AI智能-项目",
+  "required_hierarchy_depth": 5,
+  "scan_excludes": [
+    "src-tauri/target"
+  ],
+  "source_scan_paths": [
+    "."
+  ],
+  "standard_version": "1.0.0",
+  "strict": true
+}

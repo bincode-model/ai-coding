@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.codex/software-delivery-harness/1.0.0/test-case.schema.json",
+  "title": "Software Delivery Harness test cases",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["standard_version", "test_cases"],
+  "properties": {
+    "standard_version": {"const": "1.0.0"},
+    "test_cases": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/testCase"}
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128,
+      "pattern": "^[A-Z][A-Z0-9_.-]*$"
+    },
+    "text": {"type": "string", "minLength": 1, "maxLength": 4096},
+    "idList": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/id"},
+      "uniqueItems": true
+    },
+    "textList": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/text"}
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "os", "services", "variables", "secrets_redacted"],
+      "properties": {
+        "name": {"$ref": "#/$defs/text"},
+        "os": {"$ref": "#/$defs/text"},
+        "services": {"$ref": "#/$defs/textList"},
+        "variables": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "value"],
+            "properties": {
+              "name": {"$ref": "#/$defs/text"},
+              "value": {"$ref": "#/$defs/text"}
+            }
+          }
+        },
+        "secrets_redacted": {"type": "boolean"}
+      }
+    },
+    "fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fixture_id", "path", "sha256", "description"],
+      "properties": {
+        "fixture_id": {"$ref": "#/$defs/id"},
+        "path": {"type": ["string", "null"], "maxLength": 1024},
+        "sha256": {"type": ["string", "null"], "pattern": "^[a-f0-9]{64}$"},
+        "description": {"$ref": "#/$defs/text"}
+      }
+    },
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["step_no", "action", "input"],
+      "properties": {
+        "step_no": {"type": "integer", "minimum": 1},
+        "action": {"$ref": "#/$defs/text"},
+        "input": {"type": ["string", "null"], "maxLength": 4096}
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["step_no", "expected"],
+      "properties": {
+        "step_no": {"type": "integer", "minimum": 1},
+        "expected": {"$ref": "#/$defs/text"}
+      }
+    },
+    "testCase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "test_case_id", "requirement_ids", "acceptance_criterion_ids", "contract_ids", "test_type",
+        "preconditions", "steps", "expected_results", "environment", "data_fixture",
+        "automation_path", "is_mocked", "criticality"
+      ],
+      "properties": {
+        "test_case_id": {"$ref": "#/$defs/id"},
+        "requirement_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/id"},
+          "uniqueItems": true
+        },
+        "acceptance_criterion_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/id"},
+          "uniqueItems": true
+        },
+        "contract_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/id"},
+          "uniqueItems": true
+        },
+        "test_type": {
+          "enum": [
+            "unit", "component", "api", "database", "integration", "e2e",
+            "permission", "security", "file", "accessibility", "performance",
+            "recovery", "migration"
+          ]
+        },
+        "preconditions": {"$ref": "#/$defs/textList"},
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/step"}
+        },
+        "expected_results": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/expected"}
+        },
+        "environment": {"$ref": "#/$defs/environment"},
+        "data_fixture": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/fixture"}
+        },
+        "automation_path": {"type": ["string", "null"], "maxLength": 1024},
+        "is_mocked": {"type": "boolean"},
+        "criticality": {"enum": ["critical", "high", "medium", "low"]}
+      }
+    }
+  }
+}
