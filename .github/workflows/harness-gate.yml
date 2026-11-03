@@ -12,25 +12,97 @@ permissions:
 
 jobs:
   harness-gate:
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    env:
+      CI: 'true'
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      RUST_TEST_THREADS: '1'
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Prepare isolated test home and diagnostic logs
+        id: isolation
+        env:
+          CC_SWITCH_TEST_HOME: ${{ runner.temp }}/ai-coding-harness-test-home
+          TMPDIR: ${{ runner.temp }}
+          CI_LOG_DIR: ${{ runner.temp }}/harness-ci-logs
+        run: |
+          mkdir -p "$CC_SWITCH_TEST_HOME" "$CI_LOG_DIR"
+          {
+            printf 'CC_SWITCH_TEST_HOME=%s\n' "$CC_SWITCH_TEST_HOME"
+            printf 'TMPDIR=%s\n' "$TMPDIR"
+            printf 'CI_LOG_DIR=%s\n' "$CI_LOG_DIR"
+          } >> "$GITHUB_ENV"
+      - name: Install Tauri Linux prerequisites
+        id: native-dependencies
+        # https://v2.tauri.app/start/prerequisites/#linux
+        run: |
+          sudo apt-get update 2>&1 | tee "$CI_LOG_DIR/apt-update.log"
+          sudo apt-get install --no-install-recommends -y \
+            libglib2.0-dev pkg-config libwebkit2gtk-4.1-dev \
+            build-essential curl wget file libxdo-dev libssl-dev \
+            libayatana-appindicator3-dev librsvg2-dev \
+            2>&1 | tee "$CI_LOG_DIR/apt-install.log"
+          pkg-config --modversion glib-2.0 gtk+-3.0 webkit2gtk-4.1 \
+            2>&1 | tee "$CI_LOG_DIR/native-dependencies.log"
+      - name: Set up the project's exact pnpm version
+        uses: pnpm/action-setup@v4
+        with:
+          version: '10.12.3'
+          run_install: false
+      - name: Set up Node.js 22 and cache the pnpm download store
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Set up the repository's Rust toolchain
+        id: rust-toolchain
+        run: |
+          toolchain="$(python3 -c 'import pathlib, tomllib; print(tomllib.loads(pathlib.Path("rust-toolchain.toml").read_text())["toolchain"]["channel"])')"
+          rustup toolchain install "$toolchain" --profile minimal --no-self-update \
+            2>&1 | tee "$CI_LOG_DIR/rust-toolchain.log"
+          rustc --version 2>&1 | tee -a "$CI_LOG_DIR/rust-toolchain.log"
+          cargo --version 2>&1 | tee -a "$CI_LOG_DIR/rust-toolchain.log"
+      - name: Cache downloaded Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          # Cache only dependency downloads, never credentials, test homes or binaries.
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: linux-${{ runner.os }}-${{ runner.arch }}-cargo-downloads-${{ hashFiles('rust-toolchain.toml', 'src-tauri/Cargo.lock') }}
       - name: Install dependencies
-        run: "corepack enable && pnpm install --frozen-lockfile"
+        id: dependencies
+        run: pnpm install --frozen-lockfile 2>&1 | tee "$CI_LOG_DIR/pnpm-install.log"
       - name: Lint
         run: "python3 -c 'print('\"'\"'NOT_APPLICABLE: No project manifest or matching test command was detected during initialization.'\"'\"')'"
       - name: Type check
-        run: "pnpm typecheck"
-      - name: Build
-        run: "pnpm build"
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
+        run: pnpm typecheck 2>&1 | tee "$CI_LOG_DIR/typecheck.log"
+      - name: Build Linux native application without bundling
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' && steps.native-dependencies.outcome == 'success' && steps.rust-toolchain.outcome == 'success' }}
+        # Compile the production renderer and native application; macOS DMG is checked separately.
+        run: pnpm build --no-bundle -- --locked 2>&1 | tee "$CI_LOG_DIR/native-build.log"
       - name: Unit tests
-        run: "pnpm test:unit"
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
+        run: pnpm test:unit --maxWorkers=2 --minWorkers=1 2>&1 | tee "$CI_LOG_DIR/frontend-tests.log"
+      - name: Rust unit and integration regressions with isolated application data
+        if: ${{ !cancelled() && steps.isolation.outcome == 'success' && steps.native-dependencies.outcome == 'success' && steps.rust-toolchain.outcome == 'success' }}
+        run: cargo test --locked --no-fail-fast --manifest-path src-tauri/Cargo.toml --features test-hooks -- --test-threads=1 2>&1 | tee "$CI_LOG_DIR/rust-tests.log"
       - name: API tests
         run: "python3 -c 'print('\"'\"'NOT_APPLICABLE: No project manifest or matching test command was detected during initialization.'\"'\"')'"
       - name: Database tests
@@ -46,14 +118,19 @@ jobs:
       - name: Security tests
         run: "python3 -c 'print('\"'\"'NOT_APPLICABLE: No project manifest or matching test command was detected during initialization.'\"'\"')'"
       - name: Harness Schema and semantic validation
-        run: python3 scripts/harness_validate.py
+        if: ${{ !cancelled() }}
+        run: python3 scripts/harness_validate.py 2>&1 | tee "$CI_LOG_DIR/harness-validation.log"
       - name: Harness strict release gate
-        run: python3 scripts/harness_verify.py --collect --strict --json
+        if: ${{ !cancelled() }}
+        run: python3 scripts/harness_verify.py --collect --strict --json 2>&1 | tee "$CI_LOG_DIR/harness-verification.log"
       - name: Upload Harness evidence and reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: harness-artifacts
-          path: .harness/runs/
+          path: |
+            .harness/runs/
+            ${{ runner.temp }}/harness-ci-logs/
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 30
