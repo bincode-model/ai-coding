@@ -84,7 +84,7 @@ jobs:
           set -euo pipefail
           base='src-tauri/target/aarch64-apple-darwin/release/bundle'
           app="$base/macos/AI Coding.app"
-          lipo -verify_arch arm64 "$app/Contents/MacOS/ai-coding"
+          lipo "$app/Contents/MacOS/ai-coding" -verify_arch arm64
           package_count=0
           for dmg in "$base"/dmg/*.dmg; do
             test -f "$dmg"
