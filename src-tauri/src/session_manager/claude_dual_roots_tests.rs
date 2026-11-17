@@ -90,7 +90,15 @@ impl HomeFixture {
     }
 
     fn wrapper(&self) -> PathBuf {
-        let path = self.home.join(".claude-gg-dmit/bin/claude-gg");
+        let path = self
+            .home
+            .join(".claude-gg-dmit")
+            .join("bin")
+            .join(if cfg!(windows) {
+                "claude-gg.cmd"
+            } else {
+                "claude-gg"
+            });
         // This is an inert fixture. No test executes either this or real GG.
         write_bytes(&path, b"#!/bin/sh\nexit 99\n");
         #[cfg(unix)]
@@ -987,7 +995,7 @@ fn missing_or_non_executable_wrapper_never_falls_back_to_direct_claude() {
         assert!(sessions[0].resume_command.is_none());
     };
     check_denied();
-    let wrapper = fixture.home.join(".claude-gg-dmit/bin/claude-gg");
+    let wrapper = claude_roots::GgInstallation::Owner.wrapper(&fixture.home, cfg!(windows));
     fs::create_dir_all(&wrapper).unwrap();
     check_denied();
     fs::remove_dir(&wrapper).unwrap();
@@ -1909,11 +1917,15 @@ fn customer_gg_config(f: &HomeFixture, profile: &Path) -> PathBuf {
 }
 
 fn customer_gg_wrapper(f: &HomeFixture, windows: bool) -> PathBuf {
-    let path = f.home.join(".claude-gg-client/bin").join(if windows {
-        "claude-gg.cmd"
-    } else {
-        "claude-gg"
-    });
+    let path = f
+        .home
+        .join(".claude-gg-client")
+        .join("bin")
+        .join(if windows {
+            "claude-gg.cmd"
+        } else {
+            "claude-gg"
+        });
     write_bytes(
         &path,
         b"#!/bin/sh\nprintf 'customer\\n'\nprintf '%s\\n' \"$@\"\n",

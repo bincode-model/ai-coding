@@ -73,7 +73,7 @@ impl GgInstallation {
     pub(crate) fn wrapper(self, home: &Path, windows: bool) -> PathBuf {
         let wrapper = match self {
             Self::Owner => gg_wrapper(home),
-            Self::Client => home.join(".claude-gg-client/bin/claude-gg"),
+            Self::Client => home.join(".claude-gg-client").join("bin").join("claude-gg"),
         };
         if windows {
             wrapper.with_extension("cmd")
@@ -253,7 +253,7 @@ pub(crate) fn read_gg_profile(config: &Path) -> Option<PathBuf> {
 }
 
 pub(crate) fn gg_wrapper(home: &Path) -> PathBuf {
-    home.join(".claude-gg-dmit/bin/claude-gg")
+    home.join(".claude-gg-dmit").join("bin").join("claude-gg")
 }
 
 pub(crate) fn gg_installed(home: &Path) -> bool {
