@@ -81,7 +81,8 @@ import {
 } from "@/components/ui/tooltip";
 import { extractErrorMessage } from "@/utils/errorUtils";
 import { cn } from "@/lib/utils";
-import { isMac } from "@/lib/platform";
+import { isMac, isWindows } from "@/lib/platform";
+import { formatCopiedResumeCommand } from "@/lib/sessionResumeCommand";
 import { ProviderIcon } from "@/components/ProviderIcon";
 import { SessionItem } from "./SessionItem";
 import { SessionMessageItem } from "./SessionMessageItem";
@@ -770,7 +771,7 @@ export function SessionManagerPage({ appId }: { appId: string }) {
     try {
       const prepared = await prepareSelectedResume();
       await handleCopy(
-        prepared.command,
+        formatCopiedResumeCommand(prepared, isWindows()),
         t("sessionManager.resumeCommandCopied"),
       );
     } catch (error) {
@@ -789,7 +790,16 @@ export function SessionManagerPage({ appId }: { appId: string }) {
     const { command, cwd } = prepared;
 
     if (!isMac()) {
-      await handleCopy(command, t("sessionManager.resumeCommandCopied"));
+      try {
+        await handleCopy(
+          formatCopiedResumeCommand(prepared, isWindows()),
+          t("sessionManager.resumeCommandCopied"),
+        );
+      } catch (error) {
+        toast.error(
+          extractErrorMessage(error) || t("sessionManager.openFailed"),
+        );
+      }
       return;
     }
 
@@ -800,7 +810,17 @@ export function SessionManagerPage({ appId }: { appId: string }) {
       });
       toast.success(t("sessionManager.terminalLaunched"));
     } catch (error) {
-      await handleCopy(command, t("sessionManager.resumeFallbackCopied"));
+      try {
+        await handleCopy(
+          formatCopiedResumeCommand(prepared, isWindows()),
+          t("sessionManager.resumeFallbackCopied"),
+        );
+      } catch (copyError) {
+        toast.error(
+          extractErrorMessage(copyError) || t("sessionManager.openFailed"),
+        );
+        return;
+      }
       toast.error(extractErrorMessage(error) || t("sessionManager.openFailed"));
     }
   };

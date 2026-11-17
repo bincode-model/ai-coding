@@ -1,0 +1,110 @@
+name: AI Coding validation and packages
+on:
+  pull_request:
+  push:
+    branches: [main, fix/gg-customer-session-resume-20261030]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ai-coding-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: pnpm}
+      - uses: dtolnay/rust-toolchain@master
+        with: {toolchain: '1.95'}
+      - uses: Swatinem/rust-cache@v2
+        with: {workspaces: src-tauri}
+      - name: Native prerequisites
+        run: sudo apt-get update && sudo apt-get install -y libglib2.0-dev pkg-config libwebkit2gtk-4.1-dev build-essential libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test:unit --maxWorkers=2 --minWorkers=1
+      - run: pnpm build:renderer
+      - name: Native regressions with isolated application data
+        run: |
+          export CC_SWITCH_TEST_HOME="${RUNNER_TEMP}/ai-coding-test"
+          mkdir -p "$CC_SWITCH_TEST_HOME"
+          cargo test --locked --manifest-path src-tauri/Cargo.toml --features test-hooks -- --test-threads=1
+  package:
+    needs: validate
+    if: github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: aarch64-apple-darwin
+          - os: windows-2022
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: pnpm}
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: '1.95'
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with: {workspaces: src-tauri}
+      - run: pnpm install --frozen-lockfile
+      - name: Windows native regressions
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:CC_SWITCH_TEST_HOME = Join-Path $env:RUNNER_TEMP 'ai-coding-native-test'
+          New-Item -ItemType Directory -Force $env:CC_SWITCH_TEST_HOME | Out-Null
+          cargo test --locked --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --features test-hooks -- --test-threads=1
+      - name: Build official application package
+        run: pnpm tauri build --target ${{ matrix.target }}
+      - name: Verify Apple Silicon DMG without installing
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='src-tauri/target/aarch64-apple-darwin/release/bundle'
+          app="$base/macos/AI Coding.app"
+          lipo "$app/Contents/MacOS/ai-coding" -verify_arch arm64
+          package_count=0
+          for dmg in "$base"/dmg/*.dmg; do
+            test -f "$dmg"
+            package_count=$((package_count + 1))
+            sha="$(shasum -a 256 "$dmg" | cut -d ' ' -f 1)"
+            python3 scripts/verify-macos-installer.py --dmg "$dmg" --reference-app "$app" --expected-version 3.22.8 --expected-sha256 "$sha" --output release/macos-package-verification.json
+          done
+          test "$package_count" -eq 1
+      - name: Verify Windows installer and data preservation
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/windows-verify-installers.ps1 -Version '3.22.8'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AI-Coding-${{ matrix.os }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
+            src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi
+            release/macos-package-verification.json
+            release/windows/*
+          if-no-files-found: error
+          retention-days: 7

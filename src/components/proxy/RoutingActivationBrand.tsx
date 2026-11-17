@@ -85,7 +85,7 @@ export function RoutingActivationBrand({
       )}
 
       <motion.a
-        href="https://github.com/QinBin7899/ai-coding"
+        href="https://github.com/bincode-model/ai-coding"
         target="_blank"
         rel="noreferrer"
         className={cn(

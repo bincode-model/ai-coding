@@ -1,0 +1,530 @@
+{
+  "change_ledger": [
+    {
+      "change_id": "CHANGE-CODEX-APPROVAL-20261003",
+      "requirement_ids": [
+        "REQ-CODEX-APPROVAL-COMMAND",
+        "REQ-CODEX-APPROVAL-UI"
+      ],
+      "change_type": "add",
+      "before": [],
+      "after": [
+        {
+          "requirement_id": "REQ-CODEX-APPROVAL-COMMAND",
+          "title": "安全生成 Codex 全局免确认命令",
+          "description": "提供 macOS/Linux 与 Windows PowerShell 一次性命令；尊重 CODEX_HOME，备份并仅更新根级 approval_policy = \"never\"，保留其他 TOML 配置和沙箱设置，不执行命令。",
+          "criticality": "high",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-CODEX-APPROVAL-COMMAND"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-CODEX-APPROVAL-COMMAND"
+          ],
+          "test_case_ids": [
+            "TC-CODEX-APPROVAL-COMMAND"
+          ],
+          "normalized_sha256": "a1440c4259dfb01015d77a027b853e529120ae4d452b9a79867f3f940372ece5"
+        },
+        {
+          "requirement_id": "REQ-CODEX-APPROVAL-UI",
+          "title": "Codex 设置中的一键复制入口",
+          "description": "Codex 设置区仅展示适合当前系统的一条命令和一个复制按钮；复制后给出成功或失败反馈，不自动执行或写入 Codex 配置。",
+          "criticality": "high",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-CODEX-APPROVAL-UI"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-CODEX-APPROVAL-UI"
+          ],
+          "test_case_ids": [
+            "TC-CODEX-APPROVAL-UI"
+          ],
+          "normalized_sha256": "247952924904fa730a0f0e1b774c7d262199561d28ee512b780212b1bec03124"
+        }
+      ],
+      "reason": "用户要求在 AI Coding 加入单一复制命令入口；后续明确只需复制到剪贴板并自行执行，不需要软件自动修改 Codex 配置或额外供应商逻辑。",
+      "requested_by": "user",
+      "approved_by": null,
+      "impact": {
+        "risk_level": "medium",
+        "requirements": [
+          "新增 Codex 全局免确认命令和单一复制入口"
+        ],
+        "ui": [
+          "Codex 设置区新增一个复制按钮"
+        ],
+        "api": [
+          "无新 API"
+        ],
+        "database": [
+          "无数据库迁移"
+        ],
+        "files": [
+          "仅用户手动执行命令时修改 Codex config.toml"
+        ],
+        "permissions": [
+          "不自动提高沙箱权限"
+        ],
+        "tests": [
+          "新增命令与 UI 复制测试"
+        ],
+        "migration_required": false
+      },
+      "tests_to_update": [
+        "TC-CODEX-APPROVAL-COMMAND",
+        "TC-CODEX-APPROVAL-UI"
+      ],
+      "timestamp": "2026-10-03T08:20:17.396693Z",
+      "base_requirements_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "result_requirements_sha256": "114faa8ed4d37528c7a6922246f20e93109974f5536a5a8e94ccd3aa03f1108a"
+    },
+    {
+      "change_id": "CHANGE-CLAUDE-DUAL-20261021",
+      "requirement_ids": [
+        "REQ-CLAUDE-DUAL-ROOTS",
+        "REQ-CLAUDE-DUAL-WATCH",
+        "REQ-CLAUDE-GG-RESUME"
+      ],
+      "change_type": "add",
+      "before": [],
+      "after": [
+        {
+          "requirement_id": "REQ-CLAUDE-DUAL-ROOTS",
+          "title": "Claude 旧记录与专线双目录读取",
+          "description": "仅选择一个旧历史目录与一个当前 Claude GG 专线 projects 目录；旧默认目录缺失时回退最新 Claude-Code-archive-*/profile/projects。扫描、详情、全文搜索与文件状态使用一致边界；两个目录均可为空，记录不得改写。",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-CLAUDE-DUAL-ROOTS"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-CLAUDE-DUAL-ROOTS"
+          ],
+          "test_case_ids": [
+            "TC-CLAUDE-DUAL-ROOTS"
+          ],
+          "normalized_sha256": "9c4d06b9413a3e6d1b006347214b03dca72dc09a29cdbf2f845faec209bad948"
+        },
+        {
+          "requirement_id": "REQ-CLAUDE-DUAL-WATCH",
+          "title": "双目录新增记录刷新",
+          "description": "监听器覆盖相同的两处 Claude 历史根；启动时缺失的专线目录产生后可发现新记录，仍过滤子 Agent 与无关文件。",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-CLAUDE-DUAL-WATCH"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-CLAUDE-DUAL-WATCH"
+          ],
+          "test_case_ids": [
+            "TC-CLAUDE-DUAL-WATCH"
+          ],
+          "normalized_sha256": "884f0f051696baa818a93da7b146885f5d97791a18ecbdfb9b7def513216d9c9"
+        },
+        {
+          "requirement_id": "REQ-CLAUDE-GG-RESUME",
+          "title": "恢复会话遵守专线入口",
+          "description": "已安装当前专线时仅通过既有 claude-gg 入口恢复专线目录记录；旧归档完整可读，不能通过直接 claude 或更改专线配置绕过路由。",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-CLAUDE-GG-RESUME"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-CLAUDE-GG-RESUME"
+          ],
+          "test_case_ids": [
+            "TC-CLAUDE-GG-RESUME"
+          ],
+          "normalized_sha256": "a630991ff0393b44a9021a0bcded5a9147948fc13934a16d9205af37194ba35f"
+        }
+      ],
+      "reason": "用户要求先修复旧聊天与专线聊天双目录读取，再更新软件与 GitHub，成功后才清理本地项目。",
+      "requested_by": "user",
+      "approved_by": "user:conversation:2026-10-21",
+      "impact": {
+        "risk_level": "medium",
+        "requirements": [
+          "补充双目录读取、刷新与专线恢复"
+        ],
+        "ui": [
+          "现有会话页保留"
+        ],
+        "api": [
+          "现有本地会话命令扩展来源"
+        ],
+        "database": [
+          "无迁移"
+        ],
+        "files": [
+          "只读两个历史来源"
+        ],
+        "permissions": [
+          "沿用并验证规范路径边界"
+        ],
+        "tests": [
+          "隔离临时 JSONL 与真实目录元数据核对"
+        ],
+        "migration_required": false
+      },
+      "tests_to_update": [
+        "TC-CLAUDE-DUAL-ROOTS",
+        "TC-CLAUDE-DUAL-WATCH",
+        "TC-CLAUDE-GG-RESUME"
+      ],
+      "timestamp": "2026-10-22T03:51:34.070356Z",
+      "base_requirements_sha256": "114faa8ed4d37528c7a6922246f20e93109974f5536a5a8e94ccd3aa03f1108a",
+      "result_requirements_sha256": "24d17793047385dd5e7afeb2bc7453187fefaad42e5fe5eb1676ff2bd145515e"
+    },
+    {
+      "change_id": "CHANGE-GG-CUSTOMER-RESUME-20261030",
+      "requirement_ids": [
+        "REQ-CLAUDE-DUAL-ROOTS",
+        "REQ-CLAUDE-DUAL-WATCH",
+        "REQ-CLAUDE-GG-RESUME"
+      ],
+      "change_type": "scope_expand",
+      "before": [
+        {
+          "requirement_id": "REQ-CLAUDE-DUAL-ROOTS",
+          "title": "Claude 旧记录与专线双目录读取",
+          "description": "仅选择一个旧历史目录与一个当前 Claude GG 专线 projects 目录；旧默认目录缺失时回退最新 Claude-Code-archive-*/profile/projects。扫描、详情、全文搜索与文件状态使用一致边界；两个目录均可为空，记录不得改写。",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-CLAUDE-DUAL-ROOTS"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-CLAUDE-DUAL-ROOTS"
+          ],
+          "test_case_ids": [
+            "TC-CLAUDE-DUAL-ROOTS"
+          ],
+          "normalized_sha256": "9c4d06b9413a3e6d1b006347214b03dca72dc09a29cdbf2f845faec209bad948"
+        },
+        {
+          "requirement_id": "REQ-CLAUDE-DUAL-WATCH",
+          "title": "双目录新增记录刷新",
+          "description": "监听器覆盖相同的两处 Claude 历史根；启动时缺失的专线目录产生后可发现新记录，仍过滤子 Agent 与无关文件。",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-CLAUDE-DUAL-WATCH"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-CLAUDE-DUAL-WATCH"
+          ],
+          "test_case_ids": [
+            "TC-CLAUDE-DUAL-WATCH"
+          ],
+          "normalized_sha256": "884f0f051696baa818a93da7b146885f5d97791a18ecbdfb9b7def513216d9c9"
+        },
+        {
+          "requirement_id": "REQ-CLAUDE-GG-RESUME",
+          "title": "恢复会话遵守专线入口",
+          "description": "已安装当前专线时仅通过既有 claude-gg 入口恢复专线目录记录；旧归档完整可读，不能通过直接 claude 或更改专线配置绕过路由。",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-CLAUDE-GG-RESUME"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-CLAUDE-GG-RESUME"
+          ],
+          "test_case_ids": [
+            "TC-CLAUDE-GG-RESUME"
+          ],
+          "normalized_sha256": "a630991ff0393b44a9021a0bcded5a9147948fc13934a16d9205af37194ba35f"
+        }
+      ],
+      "after": [
+        {
+          "requirement_id": "REQ-CLAUDE-DUAL-ROOTS",
+          "title": "Claude 旧记录与专线双目录读取",
+          "description": "只读发现一个旧历史来源和实际安装的站长版、客户版 Claude GG projects 来源。客户版使用 .claude-gg-client/config.private.json 的 profile，站长版保持现有路径；默认配置缺失时沿用各自默认 profile。相同规范路径去重；旧默认目录缺失仍回退原归档策略。扫描、详情、全文搜索、文件状态使用相同边界，不修改历史或认证。",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-CLAUDE-DUAL-ROOTS"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-CLAUDE-DUAL-ROOTS"
+          ],
+          "test_case_ids": [
+            "TC-CLAUDE-DUAL-ROOTS"
+          ],
+          "normalized_sha256": "c83937d5c8cb3b01a9553944d44639967d624542d756048e6f8a8327fa3660d7"
+        },
+        {
+          "requirement_id": "REQ-CLAUDE-DUAL-WATCH",
+          "title": "双目录新增记录刷新",
+          "description": "监听器覆盖相同的旧历史与实际安装的站长/客户 Claude GG 历史根；启动时缺失根后来创建也可刷新，仍过滤子 Agent、无关文件和目录外事件。",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-CLAUDE-DUAL-WATCH"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-CLAUDE-DUAL-WATCH"
+          ],
+          "test_case_ids": [
+            "TC-CLAUDE-DUAL-WATCH"
+          ],
+          "normalized_sha256": "ae1175b68b32c33e05042ef9aaba66be39c99d0f02a995c852751bea5eae53d4"
+        },
+        {
+          "requirement_id": "REQ-CLAUDE-GG-RESUME",
+          "title": "恢复会话遵守专线入口",
+          "description": "恢复选中的原会话 UUID 与工作目录，并按其实际来源绑定站长或客户既有 claude-gg 包装入口。macOS 客户入口 .claude-gg-client/bin/claude-gg，Windows 客户入口 claude-gg.cmd。禁止新增 CLAUDE_CONFIG_DIR、替换登录目录、复制认证、调用裸 claude 或回退其他 GG 安装；缺失/非可执行/歧义入口或非当前来源应明确拒绝。普通未安装 GG 的 Claude 与 Codex 恢复行为保持。",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-CLAUDE-GG-RESUME"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-CLAUDE-GG-RESUME"
+          ],
+          "test_case_ids": [
+            "TC-CLAUDE-GG-RESUME"
+          ],
+          "normalized_sha256": "70d2a3afad9448df8eb183be4ab5c5cc0b7bfd482081a8b72c580b7ab4e308aa"
+        }
+      ],
+      "reason": "用户明确要求解决 AI Coding 恢复 GG 会话出现 login 的兼容缺口；纳入客户版路径，不减弱专线和原历史保护。",
+      "requested_by": "user",
+      "approved_by": "user:conversation:2026-10-30-resume-login-fix",
+      "impact": {
+        "risk_level": "high",
+        "requirements": [
+          "增加客户版识别和来源绑定"
+        ],
+        "ui": [
+          "沿用会话页面、复制及恢复按钮"
+        ],
+        "api": [
+          "既有 prepare_session_resume 使用相同来源规则"
+        ],
+        "database": [
+          "无迁移"
+        ],
+        "files": [
+          "只读配置 profile 字段和原始 JSONL，不更改认证"
+        ],
+        "permissions": [
+          "保留规范路径与安全参数边界，异常不回退直连"
+        ],
+        "tests": [
+          "客户/站长/共存/自定义根/异常与 shell 入口验证"
+        ],
+        "migration_required": false
+      },
+      "tests_to_update": [
+        "TC-CLAUDE-DUAL-ROOTS",
+        "TC-CLAUDE-DUAL-WATCH",
+        "TC-CLAUDE-GG-RESUME"
+      ],
+      "timestamp": "2026-10-31T03:53:40.387658Z",
+      "base_requirements_sha256": "24d17793047385dd5e7afeb2bc7453187fefaad42e5fe5eb1676ff2bd145515e",
+      "result_requirements_sha256": "7aff5c904abdbdd1a78239d1ce57a7719ad1cf4b72f388a19c021e966838f8f5"
+    },
+    {
+      "change_id": "CHANGE-RELEASE-RECONCILE-20261103",
+      "requirement_ids": [
+        "REQ-RELEASE-CI",
+        "REQ-RELEASE-MACOS"
+      ],
+      "change_type": "add",
+      "before": [],
+      "after": [
+        {
+          "requirement_id": "REQ-RELEASE-CI",
+          "title": "可复现的 Linux 检查环境",
+          "description": "GitHub Linux 检查安装官方 Tauri 系统依赖及项目声明的 Node、pnpm 和 Rust 工具链，真实执行构建与回归，保留失败和严格发布门禁；不使用假成功、跳过失败或降低验收。",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-RELEASE-CI"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-RELEASE-CI"
+          ],
+          "test_case_ids": [
+            "TC-CI-LINUX"
+          ],
+          "normalized_sha256": "77eb41f16495118de7bd930989417e20485535deeec25d5202b3ec205330edd7"
+        },
+        {
+          "requirement_id": "REQ-RELEASE-MACOS",
+          "title": "核验 macOS 安装包及发布边界",
+          "description": "发布前核对 3.22.7 DMG 完整性、只读挂载内容、版本与源码构建记录和本机试用版摘要；不打包客户聊天、登录、密钥或个人配置；明确签名、公证、待测平台和整体门禁状态。",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-RELEASE-MACOS"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-RELEASE-MACOS"
+          ],
+          "test_case_ids": [
+            "TC-MACOS-PACKAGE"
+          ],
+          "normalized_sha256": "feda531e7843ae1098c43e027dee0bc5b33556e5e38bb1005341f666b2363cf2"
+        }
+      ],
+      "reason": "用户在核查后要求把 AI Coding GitHub 检查、源码和安装包同步收尾；保留已有全产品发布门禁和待验项。",
+      "requested_by": "user:2026-11-03",
+      "approved_by": "user:2026-11-03 好，那你也搞定一下",
+      "impact": {
+        "risk_level": "medium",
+        "requirements": [
+          "增加 CI 环境及 macOS 包核验的独立要求"
+        ],
+        "ui": [
+          "无界面变化"
+        ],
+        "api": [
+          "无应用 API 变化"
+        ],
+        "database": [
+          "无数据库变化"
+        ],
+        "files": [
+          "GitHub CI 与独立安装包验证脚本"
+        ],
+        "permissions": [
+          "不改本机网络和登录权限"
+        ],
+        "tests": [
+          "Linux 构建与回归、只读 DMG 核验"
+        ],
+        "migration_required": false
+      },
+      "tests_to_update": [
+        "TC-CI-LINUX",
+        "TC-MACOS-PACKAGE"
+      ],
+      "timestamp": "2026-11-03T11:10:44.493971+00:00",
+      "base_requirements_sha256": "7aff5c904abdbdd1a78239d1ce57a7719ad1cf4b72f388a19c021e966838f8f5",
+      "result_requirements_sha256": "8f8e34f9f06453afe720e5131d7eb07785bbe25823cd421f0926ece71eac723c"
+    },
+    {
+      "change_id": "CHANGE-USER-GITHUB-RECONCILE-20261103",
+      "requirement_ids": [
+        "REQ-LOCAL",
+        "REQ-TOOLCHECK-LOCALONLY"
+      ],
+      "change_type": "scope_expand",
+      "before": [
+        {
+          "requirement_id": "REQ-LOCAL",
+          "title": "本地验证等待发布",
+          "description": "修改、测试和安装包留在本地，不 push、发布 Release 或同步 GitHub。",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-LOCAL"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-LOCAL"
+          ],
+          "test_case_ids": [
+            "TC-LOCAL"
+          ],
+          "normalized_sha256": "f2fe02930f3a6f8a88e763aa7d3f7cdee81ae21343172abab67879f366e0c386"
+        },
+        {
+          "requirement_id": "REQ-TOOLCHECK-LOCALONLY",
+          "title": "Local update only",
+          "description": "Build and replace local AI Coding with backups; no GitHub push or release without later user confirmation.",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-TOOLCHECK-LOCALONLY"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-TOOLCHECK-LOCALONLY"
+          ],
+          "test_case_ids": [
+            "TC-TOOLCHECK-LOCALONLY"
+          ],
+          "normalized_sha256": "c3f5e6026c9e654c8ac5f7022500d1e35497c8700feae7f38f5ee698e85540d2"
+        }
+      ],
+      "after": [
+        {
+          "requirement_id": "REQ-LOCAL",
+          "title": "本地验证等待发布",
+          "description": "默认修改、测试和安装包留在本地；只有用户后续明确授权时才可同步指定 GitHub 仓库或准备发布，仍保留发布门禁，不上传聊天、登录、密钥或个人配置。",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-LOCAL"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-LOCAL"
+          ],
+          "test_case_ids": [
+            "TC-LOCAL"
+          ],
+          "normalized_sha256": "e0c941416560dff7b04e529b6178955deeab14671dcd064a35545d2af4b941d8"
+        },
+        {
+          "requirement_id": "REQ-TOOLCHECK-LOCALONLY",
+          "title": "Local update only",
+          "description": "本地构建和替换需保留备份；后续明确授权才可同步指定 GitHub 仓库和准备安装包发布，保留发布门禁，不自动批量更新客户。",
+          "criticality": "critical",
+          "category_path": [
+            "REQ-SESSIONS",
+            "REQ-TOOLCHECK-LOCALONLY"
+          ],
+          "acceptance_criterion_ids": [
+            "AC-TOOLCHECK-LOCALONLY"
+          ],
+          "test_case_ids": [
+            "TC-TOOLCHECK-LOCALONLY"
+          ],
+          "normalized_sha256": "5b02f65375f1d97d2fd0bfb0a932e8b86593252559a5ef05c978d3b958db71c1"
+        }
+      ],
+      "reason": "用户在得知源码草稿和安装包未收尾后，明确回复“好，那你也搞定一下”；记录后续 GitHub 同步和安装包准备授权，保留所有全产品门禁与事实限制。",
+      "requested_by": "user:2026-11-03",
+      "approved_by": "user:2026-11-03 好，那你也搞定一下",
+      "impact": {
+        "risk_level": "medium",
+        "requirements": [
+          "后续明确授权触发 GitHub 同步；发布仍受门禁约束"
+        ],
+        "ui": [
+          "无变化"
+        ],
+        "api": [
+          "无变化"
+        ],
+        "database": [
+          "无变化"
+        ],
+        "files": [
+          "仅项目源码和干净安装包"
+        ],
+        "permissions": [
+          "不涉及专线、网络、登录或批量客户更新"
+        ],
+        "tests": [
+          "原本地保护测试保持；增加发布核验"
+        ],
+        "migration_required": false
+      },
+      "tests_to_update": [
+        "TC-LOCAL",
+        "TC-TOOLCHECK-LOCALONLY"
+      ],
+      "timestamp": "2026-11-03T11:16:43.192386+00:00",
+      "base_requirements_sha256": "8f8e34f9f06453afe720e5131d7eb07785bbe25823cd421f0926ece71eac723c",
+      "result_requirements_sha256": "89583be8b1a04b76741cde835f5fd4f341ef632f9db9997c59be74a4c331d48a"
+    }
+  ],
+  "standard_version": "1.0.0"
+}

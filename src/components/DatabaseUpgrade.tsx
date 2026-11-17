@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const RELEASES_URL = "https://github.com/QinBin7899/ai-coding/releases";
+const RELEASES_URL = "https://github.com/bincode-model/ai-coding/releases";
 
 interface DatabaseUpgradeProps {
   payload: {
