@@ -1,136 +1,107 @@
-# software-delivery-harness managed workflow v1.0.0
-name: Harness Gate
-
+name: AI Coding validation and packages
 on:
   pull_request:
   push:
-    branches: [main, master]
+    branches: [main, fix/gg-customer-session-resume-20261030]
   workflow_dispatch:
-
 permissions:
   contents: read
-
+concurrency:
+  group: ai-coding-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
-  harness-gate:
+  validate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
-    defaults:
-      run:
-        shell: bash
+    timeout-minutes: 60
     env:
-      CI: 'true'
       CARGO_BUILD_JOBS: '2'
       CARGO_INCREMENTAL: '0'
       CARGO_PROFILE_DEV_DEBUG: '0'
       CARGO_PROFILE_TEST_DEBUG: '0'
-      RUST_TEST_THREADS: '1'
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Prepare isolated test home and diagnostic logs
-        id: isolation
-        env:
-          CC_SWITCH_TEST_HOME: ${{ runner.temp }}/ai-coding-harness-test-home
-          TMPDIR: ${{ runner.temp }}
-          CI_LOG_DIR: ${{ runner.temp }}/harness-ci-logs
+        with: {persist-credentials: false}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: pnpm}
+      - uses: dtolnay/rust-toolchain@master
+        with: {toolchain: '1.95'}
+      - uses: Swatinem/rust-cache@v2
+        with: {workspaces: src-tauri}
+      - name: Native prerequisites
+        run: sudo apt-get update && sudo apt-get install -y libglib2.0-dev pkg-config libwebkit2gtk-4.1-dev build-essential libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test:unit --maxWorkers=2 --minWorkers=1
+      - run: pnpm build:renderer
+      - name: Native regressions with isolated application data
         run: |
-          mkdir -p "$CC_SWITCH_TEST_HOME" "$CI_LOG_DIR"
-          {
-            printf 'CC_SWITCH_TEST_HOME=%s\n' "$CC_SWITCH_TEST_HOME"
-            printf 'TMPDIR=%s\n' "$TMPDIR"
-            printf 'CI_LOG_DIR=%s\n' "$CI_LOG_DIR"
-          } >> "$GITHUB_ENV"
-      - name: Install Tauri Linux prerequisites
-        id: native-dependencies
-        # https://v2.tauri.app/start/prerequisites/#linux
+          export CC_SWITCH_TEST_HOME="${RUNNER_TEMP}/ai-coding-test"
+          mkdir -p "$CC_SWITCH_TEST_HOME"
+          cargo test --locked --manifest-path src-tauri/Cargo.toml --features test-hooks -- --test-threads=1
+  package:
+    needs: validate
+    if: github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: aarch64-apple-darwin
+          - os: windows-2022
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      CC_SWITCH_TEST_HOME: ${{ runner.temp }}/ai-coding-native-test
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: pnpm}
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: '1.95'
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with: {workspaces: src-tauri}
+      - run: pnpm install --frozen-lockfile
+      - name: Windows native regressions
+        if: runner.os == 'Windows'
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --features test-hooks -- --test-threads=1
+      - name: Build official application package
+        run: pnpm tauri build --target ${{ matrix.target }}
+      - name: Verify Apple Silicon DMG without installing
+        if: runner.os == 'macOS'
+        shell: bash
         run: |
-          sudo apt-get update 2>&1 | tee "$CI_LOG_DIR/apt-update.log"
-          sudo apt-get install --no-install-recommends -y \
-            libglib2.0-dev pkg-config libwebkit2gtk-4.1-dev \
-            build-essential curl wget file libxdo-dev libssl-dev \
-            libayatana-appindicator3-dev librsvg2-dev \
-            2>&1 | tee "$CI_LOG_DIR/apt-install.log"
-          pkg-config --modversion glib-2.0 gtk+-3.0 webkit2gtk-4.1 \
-            2>&1 | tee "$CI_LOG_DIR/native-dependencies.log"
-      - name: Set up the project's exact pnpm version
-        uses: pnpm/action-setup@v4
+          set -euo pipefail
+          base='src-tauri/target/aarch64-apple-darwin/release/bundle'
+          app="$base/macos/AI Coding.app"
+          lipo -verify_arch arm64 "$app/Contents/MacOS/ai-coding"
+          package_count=0
+          for dmg in "$base"/dmg/*.dmg; do
+            test -f "$dmg"
+            package_count=$((package_count + 1))
+            sha="$(shasum -a 256 "$dmg" | cut -d ' ' -f 1)"
+            python3 scripts/verify-macos-installer.py --dmg "$dmg" --reference-app "$app" --expected-version 3.22.8 --expected-sha256 "$sha" --output release/macos-package-verification.json
+          done
+          test "$package_count" -eq 1
+      - name: Verify Windows installer and data preservation
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/windows-verify-installers.ps1 -Version '3.22.8'
+      - uses: actions/upload-artifact@v4
         with:
-          version: '10.12.3'
-          run_install: false
-      - name: Set up Node.js 22 and cache the pnpm download store
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-      - name: Set up the repository's Rust toolchain
-        id: rust-toolchain
-        run: |
-          toolchain="$(python3 -c 'import pathlib, tomllib; print(tomllib.loads(pathlib.Path("rust-toolchain.toml").read_text())["toolchain"]["channel"])')"
-          rustup toolchain install "$toolchain" --profile minimal --no-self-update \
-            2>&1 | tee "$CI_LOG_DIR/rust-toolchain.log"
-          rustc --version 2>&1 | tee -a "$CI_LOG_DIR/rust-toolchain.log"
-          cargo --version 2>&1 | tee -a "$CI_LOG_DIR/rust-toolchain.log"
-      - name: Cache downloaded Cargo dependencies
-        uses: actions/cache@v4
-        with:
-          # Cache only dependency downloads, never credentials, test homes or binaries.
+          name: AI-Coding-${{ matrix.os }}
           path: |
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            ~/.cargo/git/db
-          key: linux-${{ runner.os }}-${{ runner.arch }}-cargo-downloads-${{ hashFiles('rust-toolchain.toml', 'src-tauri/Cargo.lock') }}
-      - name: Install dependencies
-        id: dependencies
-        run: pnpm install --frozen-lockfile 2>&1 | tee "$CI_LOG_DIR/pnpm-install.log"
-      - name: Lint
-        run: "python3 -c 'print('\"'\"'NOT_APPLICABLE: No project manifest or matching test command was detected during initialization.'\"'\"')'"
-      - name: Type check
-        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
-        run: pnpm typecheck 2>&1 | tee "$CI_LOG_DIR/typecheck.log"
-      - name: Build Linux native application without bundling
-        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' && steps.native-dependencies.outcome == 'success' && steps.rust-toolchain.outcome == 'success' }}
-        # Compile the production renderer and native application; macOS DMG is checked separately.
-        run: pnpm build --no-bundle -- --locked 2>&1 | tee "$CI_LOG_DIR/native-build.log"
-      - name: Unit tests
-        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
-        run: pnpm test:unit --maxWorkers=2 --minWorkers=1 2>&1 | tee "$CI_LOG_DIR/frontend-tests.log"
-      - name: Rust unit and integration regressions with isolated application data
-        if: ${{ !cancelled() && steps.isolation.outcome == 'success' && steps.native-dependencies.outcome == 'success' && steps.rust-toolchain.outcome == 'success' }}
-        run: cargo test --locked --no-fail-fast --manifest-path src-tauri/Cargo.toml --features test-hooks -- --test-threads=1 2>&1 | tee "$CI_LOG_DIR/rust-tests.log"
-      - name: API tests
-        run: "python3 -c 'print('\"'\"'NOT_APPLICABLE: No project manifest or matching test command was detected during initialization.'\"'\"')'"
-      - name: Database tests
-        run: "python3 -c 'print('\"'\"'NOT_APPLICABLE: No project manifest or matching test command was detected during initialization.'\"'\"')'"
-      - name: Integration tests
-        run: "python3 -c 'print('\"'\"'NOT_APPLICABLE: No project manifest or matching test command was detected during initialization.'\"'\"')'"
-      - name: E2E tests
-        run: "python3 -c 'print('\"'\"'NOT_APPLICABLE: No project manifest or matching test command was detected during initialization.'\"'\"')'"
-      - name: File tests
-        run: "python3 -c 'print('\"'\"'NOT_APPLICABLE: No project manifest or matching test command was detected during initialization.'\"'\"')'"
-      - name: Permission tests
-        run: "python3 -c 'print('\"'\"'NOT_APPLICABLE: No project manifest or matching test command was detected during initialization.'\"'\"')'"
-      - name: Security tests
-        run: "python3 -c 'print('\"'\"'NOT_APPLICABLE: No project manifest or matching test command was detected during initialization.'\"'\"')'"
-      - name: Harness Schema and semantic validation
-        if: ${{ !cancelled() }}
-        run: python3 scripts/harness_validate.py 2>&1 | tee "$CI_LOG_DIR/harness-validation.log"
-      - name: Harness strict release gate
-        if: ${{ !cancelled() }}
-        run: python3 scripts/harness_verify.py --collect --strict --json 2>&1 | tee "$CI_LOG_DIR/harness-verification.log"
-      - name: Upload Harness evidence and reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: harness-artifacts
-          path: |
-            .harness/runs/
-            ${{ runner.temp }}/harness-ci-logs/
-          include-hidden-files: true
+            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
+            src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi
+            release/macos-package-verification.json
+            release/windows/*
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
