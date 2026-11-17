@@ -55,7 +55,6 @@ jobs:
     env:
       CARGO_BUILD_JOBS: '2'
       CARGO_INCREMENTAL: '0'
-      CC_SWITCH_TEST_HOME: ${{ runner.temp }}/ai-coding-native-test
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -71,7 +70,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Windows native regressions
         if: runner.os == 'Windows'
-        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --features test-hooks -- --test-threads=1
+        shell: pwsh
+        run: |
+          $env:CC_SWITCH_TEST_HOME = Join-Path $env:RUNNER_TEMP 'ai-coding-native-test'
+          New-Item -ItemType Directory -Force $env:CC_SWITCH_TEST_HOME | Out-Null
+          cargo test --locked --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --features test-hooks -- --test-threads=1
       - name: Build official application package
         run: pnpm tauri build --target ${{ matrix.target }}
       - name: Verify Apple Silicon DMG without installing
