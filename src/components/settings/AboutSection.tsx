@@ -447,13 +447,13 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
 
       if (!displayVersion) {
         await settingsApi.openExternal(
-          "https://github.com/QinBin7899/ai-coding/releases",
+          "https://github.com/bincode-model/ai-coding/releases",
         );
         return;
       }
 
       await settingsApi.openExternal(
-        `https://github.com/QinBin7899/ai-coding/releases/tag/${displayVersion}`,
+        `https://github.com/bincode-model/ai-coding/releases/tag/${displayVersion}`,
       );
     } catch (error) {
       console.error("[AboutSection] Failed to open release notes", error);
@@ -905,7 +905,7 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
             size="sm"
             onClick={() =>
               settingsApi.openExternal(
-                "https://github.com/QinBin7899/ai-coding",
+                "https://github.com/bincode-model/ai-coding",
               )
             }
             className="h-8 gap-1.5 text-xs"
@@ -919,7 +919,7 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
             size="sm"
             onClick={() =>
               settingsApi.openExternal(
-                "https://github.com/QinBin7899/ai-coding",
+                "https://github.com/bincode-model/ai-coding",
               )
             }
             className="h-8 gap-1.5 text-xs"
