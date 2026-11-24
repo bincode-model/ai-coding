@@ -90,7 +90,15 @@ impl HomeFixture {
     }
 
     fn wrapper(&self) -> PathBuf {
-        let path = self.home.join(".claude-gg-dmit/bin/claude-gg");
+        let path = self
+            .home
+            .join(".claude-gg-dmit")
+            .join("bin")
+            .join(if cfg!(windows) {
+                "claude-gg.cmd"
+            } else {
+                "claude-gg"
+            });
         // This is an inert fixture. No test executes either this or real GG.
         write_bytes(&path, b"#!/bin/sh\nexit 99\n");
         #[cfg(unix)]
@@ -197,11 +205,11 @@ fn assert_rejected_source(source: &Path, roots: &[PathBuf]) {
 // REQ-CLAUDE-DUAL-ROOTS / TC-CLAUDE-DUAL-ROOTS
 
 #[test]
-fn configured_legacy_has_priority_and_excludes_other_archives_and_mirror() {
+fn native_and_configured_histories_exclude_other_archives_and_mirror() {
     let fixture = HomeFixture::new();
     let legacy = fixture.session(&fixture.legacy(), ID_A);
     let gg = fixture.session(&fixture.gg(), ID_A);
-    fixture.session(&fixture.home.join(".claude/projects"), ID_B);
+    let native = fixture.session(&fixture.home.join(".claude/projects"), ID_B);
     fixture.session(
         &fixture.archive("Claude-Code-archive-20261021-120000"),
         ID_B,
@@ -209,7 +217,7 @@ fn configured_legacy_has_priority_and_excludes_other_archives_and_mirror() {
     fixture.session(&fixture.mirror(), ID_C);
 
     let roots = fixture.roots();
-    assert_eq!(roots.len(), 2);
+    assert_eq!(roots.len(), 3);
     assert_eq!(
         roots[0],
         ClaudeRoot {
@@ -227,17 +235,19 @@ fn configured_legacy_has_priority_and_excludes_other_archives_and_mirror() {
     let sessions = claude::scan_sessions_with_roots(&fixture.home, &roots);
     assert_eq!(
         sessions.len(),
-        2,
+        3,
         "different files with the same UUID are distinct histories"
     );
-    assert!(sessions
-        .iter()
-        .all(|meta| meta.session_id == ID_A && meta.provider_id == "claude"));
+    assert!(sessions.iter().all(|meta| meta.provider_id == "claude"));
     assert_eq!(
         scanned_paths(&sessions),
-        BTreeSet::from([legacy.canonicalize().unwrap(), gg.canonicalize().unwrap()])
+        BTreeSet::from([
+            legacy.canonicalize().unwrap(),
+            gg.canonicalize().unwrap(),
+            native.canonicalize().unwrap()
+        ])
     );
-    for source in [&legacy, &gg] {
+    for source in [&legacy, &gg, &native] {
         assert_read_stat_unchanged(source, &claude_roots::paths(&roots));
     }
 }
@@ -342,6 +352,15 @@ fn public_read_stat_and_search_isolate_legacy_and_gg_histories() {
     let gg = home
         .join(".claude-gg-dmit-metered/profile/projects/synthetic-project")
         .join(format!("{ID_A}.jsonl"));
+    let bwh_install = home.join(".claude-gg-bwh-client");
+    let profile = bwh_install.join("profile-0123456789abcdef0123456789abcdef");
+    write_bytes(
+        &bwh_install.join("config.private.json"),
+        &serde_json::to_vec(&json!({"profile":profile})).unwrap(),
+    );
+    let bwh = profile
+        .join("projects/synthetic-project")
+        .join(format!("{ID_A}.jsonl"));
     let outside = home.join("outside-projects").join(format!("{ID_A}.jsonl"));
     let reply_line = |reply: &str| {
         format!(
@@ -358,6 +377,7 @@ fn public_read_stat_and_search_isolate_legacy_and_gg_histories() {
     };
     let legacy_bytes = make_source(&legacy, LEGACY_TEXT);
     let mut gg_bytes = make_source(&gg, GG_TEXT);
+    let bwh_bytes = make_source(&bwh, "second line unique reply");
     let outside_bytes = make_source(&outside, OUTSIDE_TEXT);
     let ignored_aliases = [
         legacy.parent().unwrap().join("agent-alias.jsonl"),
@@ -384,8 +404,10 @@ fn public_read_stat_and_search_isolate_legacy_and_gg_histories() {
     let sessions = claude::scan_sessions();
     let legacy_source = legacy.canonicalize().unwrap();
     let gg_source = gg.canonicalize().unwrap();
-    let expected_paths = BTreeSet::from([legacy_source.clone(), gg_source.clone()]);
-    assert_eq!(sessions.len(), 2);
+    let bwh_source = bwh.canonicalize().unwrap();
+    let expected_paths =
+        BTreeSet::from([legacy_source.clone(), gg_source.clone(), bwh_source.clone()]);
+    assert_eq!(sessions.len(), 3);
     assert!(sessions
         .iter()
         .all(|meta| meta.provider_id == "claude" && meta.session_id == ID_A));
@@ -442,6 +464,16 @@ fn public_read_stat_and_search_isolate_legacy_and_gg_histories() {
     };
     assert_public_read(&legacy_source, &[LEGACY_TEXT], &legacy_bytes);
     assert_public_read(&gg_source, &[GG_TEXT], &gg_bytes);
+    assert_public_read(&bwh_source, &["second line unique reply"], &bwh_bytes);
+    assert_hit(
+        "second line unique reply",
+        SessionSearchMode::Exact,
+        &bwh_source,
+        "second line unique reply",
+    );
+    assert!(super::delete_session("claude", ID_A, bwh.to_str().unwrap()).is_err());
+    assert!(resume::prepare("claude", ID_A, bwh.to_str().unwrap()).is_err());
+    assert_eq!(fs::read(&bwh).unwrap(), bwh_bytes);
     for (source, text, fuzzy) in [
         (&legacy_source, LEGACY_TEXT, LEGACY_FUZZY),
         (&gg_source, GG_TEXT, GG_FUZZY),
@@ -455,7 +487,7 @@ fn public_read_stat_and_search_isolate_legacy_and_gg_histories() {
         (SessionSearchMode::Fuzzy, "保留 原始 问题"),
     ] {
         let hits = search::search_contents(&items, query, 0, mode);
-        assert_eq!(hits.len(), 2, "same UUID must not merge source paths");
+        assert_eq!(hits.len(), 3, "same UUID must not merge source paths");
         assert_eq!(
             hits.iter()
                 .map(|hit| PathBuf::from(&hit.source_path))
@@ -987,7 +1019,7 @@ fn missing_or_non_executable_wrapper_never_falls_back_to_direct_claude() {
         assert!(sessions[0].resume_command.is_none());
     };
     check_denied();
-    let wrapper = fixture.home.join(".claude-gg-dmit/bin/claude-gg");
+    let wrapper = claude_roots::GgInstallation::Owner.wrapper(&fixture.home, cfg!(windows));
     fs::create_dir_all(&wrapper).unwrap();
     check_denied();
     fs::remove_dir(&wrapper).unwrap();
@@ -1890,4 +1922,302 @@ fn read_only_real_claude_dual_roots_acceptance() {
     // GG's logical root may be absent or empty. That is an explicit supported
     // state, not an ignored failure or a requirement for creating user files.
     println!("READ_ONLY_CLAUDE_ACCEPTANCE roots=2 legacy_archive={archive} legacy_configured={configured} current_gg={gg} current_gg_root_present={} scanned={} raw_user_text={raw_user} raw_assistant_text={raw_assistant} loaded_user={loaded_user} loaded_assistant={loaded_assistant} checked_bytes={checked_bytes}", usize::from(roots[1].path.is_dir()), sessions.len());
+}
+
+// Regression coverage for customer installers and source-bound GG restore.
+fn customer_gg_profile(f: &HomeFixture) -> PathBuf {
+    f.home.join(".claude-gg-client/profile")
+}
+
+fn customer_gg_config(f: &HomeFixture, profile: &Path) -> PathBuf {
+    let config = f.home.join(".claude-gg-client/config.private.json");
+    write_bytes(
+        &config,
+        json!({"profile":profile,"secret":"fixture-only-do-not-copy"})
+            .to_string()
+            .as_bytes(),
+    );
+    config
+}
+
+fn customer_gg_wrapper(f: &HomeFixture, windows: bool) -> PathBuf {
+    let path = f
+        .home
+        .join(".claude-gg-client")
+        .join("bin")
+        .join(if windows {
+            "claude-gg.cmd"
+        } else {
+            "claude-gg"
+        });
+    write_bytes(
+        &path,
+        b"#!/bin/sh\nprintf 'customer\\n'\nprintf '%s\\n' \"$@\"\n",
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
+    }
+    path
+}
+
+#[test]
+fn customer_gg_discovery_reads_and_watches_original_history_without_mutation() {
+    let f = HomeFixture::new();
+    let profile = customer_gg_profile(&f);
+    let config = customer_gg_config(&f, &profile);
+    let old = f.session(&f.legacy(), ID_A);
+    let source = f.session(&profile.join("projects"), ID_B);
+    let wrapper = customer_gg_wrapper(&f, cfg!(windows));
+    let credential = profile.join(".credentials.json");
+    write_bytes(&credential, b"isolated-auth-sentinel");
+    let before: Vec<_> = [&old, &source, &config, &credential]
+        .iter()
+        .map(|p| fs::read(p).unwrap())
+        .collect();
+    let roots = f.roots();
+    let sessions = claude::scan_sessions_with_roots(&f.home, &roots);
+    assert_eq!(sessions.len(), 2);
+    assert!(claude_roots::gg_installed(&f.home));
+    let gg = sessions.iter().find(|s| s.session_id == ID_B).unwrap();
+    let prepared = resume::prepare_claude_for_home(&f.home, &f.configured, ID_B, &source).unwrap();
+    assert_eq!(
+        gg.resume_command.as_deref(),
+        Some(prepared.command.as_str())
+    );
+    assert_eq!(prepared.command, expected_gg_command(&wrapper, ID_B));
+    assert_eq!(prepared.cwd.as_deref(), f.cwd.to_str());
+    assert!(f
+        .desired()
+        .iter()
+        .any(|(_, p)| *p == profile.join("projects")));
+    assert!(!prepared.command.contains("CLAUDE_CONFIG_DIR"));
+    assert_read_stat_unchanged(&source, &claude_roots::paths(&roots));
+    for (p, bytes) in [&old, &source, &config, &credential].iter().zip(before) {
+        assert_eq!(fs::read(p).unwrap(), bytes);
+    }
+}
+
+#[test]
+fn native_and_both_customer_lines_remain_visible_with_a_provider_override() {
+    let f = HomeFixture::new();
+    let line1 = customer_gg_profile(&f);
+    customer_gg_config(&f, &line1);
+    let line2 = f.home.join(".claude-gg-bwh-client/profile");
+    let native = f.home.join(".claude/projects");
+    let expected = [
+        f.session(&f.legacy(), ID_A),
+        f.session(&native, ID_A),
+        f.session(&line1.join("projects"), ID_A),
+        f.session(&line2.join("projects"), ID_A),
+    ];
+    let ignored = f
+        .home
+        .join(".claude-gg-bwh-client.preparing-incomplete/profile/projects");
+    f.session(&ignored, ID_B);
+    f.session(
+        &f.home
+            .join(".claude-gg-bwh-client/profile-deadbeefdeadbeefdeadbeefdeadbeef/projects"),
+        ID_C,
+    );
+    let roots = f.roots();
+    assert_eq!(
+        scanned_paths(&claude::scan_sessions_with_roots(&f.home, &roots)),
+        expected
+            .iter()
+            .map(|path| path.canonicalize().unwrap())
+            .collect()
+    );
+    let desired = f.desired();
+    for root in [&native, &line1.join("projects"), &line2.join("projects")] {
+        assert!(desired.contains(&("claude".to_string(), root.clone())));
+    }
+    for source in expected {
+        assert_read_stat_unchanged(&source, &claude_roots::paths(&roots));
+    }
+}
+
+#[test]
+fn line_two_never_routes_a_native_or_overridden_session_to_plain_claude() {
+    let f = HomeFixture::new();
+    let install = f.home.join(".claude-gg-bwh-client");
+    let profile = install.join("profile");
+    let source = f.session(&profile.join("projects"), ID_A);
+    let native = f.session(&f.home.join(".claude/projects"), ID_A);
+    for configured in [&profile, &f.home.join(".claude")] {
+        assert!(resume::prepare_claude_for_home(&f.home, configured, ID_A, &source).is_err());
+        assert!(resume::prepare_claude_for_home(&f.home, configured, ID_A, &native).is_err());
+    }
+    // A partially repaired or moved installation does not grant access to a
+    // path outside the original directory. Its config is never changed.
+    let outside = f.home.join("different account/profile");
+    let foreign = f.session(&outside.join("projects"), ID_B);
+    let config = install.join("config.private.json");
+    let bytes = serde_json::to_vec(&json!({"profile":outside})).unwrap();
+    write_bytes(&config, &bytes);
+    let paths = scanned_paths(&claude::scan_sessions_with_roots(&f.home, &f.roots()));
+    assert!(!paths.contains(&foreign.canonicalize().unwrap()));
+    assert_eq!(fs::read(config).unwrap(), bytes);
+}
+
+#[test]
+fn customer_gg_and_owner_same_uuid_restore_via_their_own_entries() {
+    let f = HomeFixture::new();
+    let owner_source = f.session(&f.gg(), ID_A);
+    let owner_wrapper = f.wrapper();
+    let profile = customer_gg_profile(&f);
+    customer_gg_config(&f, &profile);
+    let client_source = f.session(&profile.join("projects"), ID_A);
+    let client_wrapper = customer_gg_wrapper(&f, cfg!(windows));
+    let roots = f.roots();
+    assert_eq!(claude::scan_sessions_with_roots(&f.home, &roots).len(), 2);
+    for (source, wrapper) in [
+        (&owner_source, &owner_wrapper),
+        (&client_source, &client_wrapper),
+    ] {
+        let p = resume::prepare_claude_for_home(&f.home, &f.configured, ID_A, source).unwrap();
+        assert_eq!(p.command, expected_gg_command(wrapper, ID_A));
+    }
+}
+
+#[test]
+fn customer_gg_custom_profile_is_not_confused_with_configured_claude() {
+    let f = HomeFixture::new();
+    customer_gg_config(&f, &f.configured);
+    let source = f.session(&f.legacy(), ID_A);
+    let wrapper = customer_gg_wrapper(&f, cfg!(windows));
+    let roots = f.roots();
+    assert_eq!(claude::scan_sessions_with_roots(&f.home, &roots).len(), 1);
+    let p = resume::prepare_claude_for_home(&f.home, &f.configured, ID_A, &source).unwrap();
+    assert_eq!(p.command, expected_gg_command(&wrapper, ID_A));
+    assert!(!p.command.contains("CLAUDE_CONFIG_DIR"));
+}
+
+#[test]
+fn customer_gg_missing_entry_never_uses_owner_or_plain_claude() {
+    let f = HomeFixture::new();
+    let p = customer_gg_profile(&f);
+    customer_gg_config(&f, &p);
+    let source = f.session(&p.join("projects"), ID_A);
+    f.wrapper();
+    let legacy = f.session(&f.legacy(), ID_B);
+    assert!(resume::prepare_claude_for_home(&f.home, &f.configured, ID_A, &source).is_err());
+    assert!(resume::prepare_claude_for_home(&f.home, &f.configured, ID_B, &legacy).is_err());
+    assert!(claude::scan_sessions_with_roots(&f.home, &f.roots())
+        .iter()
+        .all(|s| s.resume_command.is_none()));
+}
+
+#[cfg(unix)]
+#[test]
+fn customer_gg_non_executable_and_symlink_entries_fail_closed() {
+    use std::os::unix::{fs::symlink, fs::PermissionsExt};
+    let f = HomeFixture::new();
+    let p = customer_gg_profile(&f);
+    customer_gg_config(&f, &p);
+    let source = f.session(&p.join("projects"), ID_A);
+    let wrapper = customer_gg_wrapper(&f, false);
+    fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o600)).unwrap();
+    assert!(resume::prepare_claude_for_home(&f.home, &f.configured, ID_A, &source).is_err());
+    fs::remove_file(&wrapper).unwrap();
+    let owner = f.wrapper();
+    symlink(owner, &wrapper).unwrap();
+    assert!(resume::prepare_claude_for_home(&f.home, &f.configured, ID_A, &source).is_err());
+}
+
+#[cfg(unix)]
+#[test]
+fn customer_gg_broken_install_marker_blocks_plain_claude_fallback() {
+    use std::os::unix::fs::symlink;
+    let f = HomeFixture::new();
+    let old = f.session(&f.legacy(), ID_A);
+    symlink(
+        f.home.join("not-installed"),
+        f.home.join(".claude-gg-client"),
+    )
+    .unwrap();
+    assert!(claude_roots::gg_installed(&f.home));
+    assert!(resume::prepare_claude_for_home(&f.home, &f.configured, ID_A, &old).is_err());
+}
+
+#[test]
+fn customer_gg_ambiguous_shared_profile_cannot_pick_arbitrary_login() {
+    let f = HomeFixture::new();
+    let source = f.session(&f.gg(), ID_A);
+    f.wrapper();
+    customer_gg_wrapper(&f, cfg!(windows));
+    customer_gg_config(&f, f.gg().parent().unwrap());
+    let roots = f.roots();
+    assert_eq!(claude::scan_sessions_with_roots(&f.home, &roots).len(), 1);
+    assert!(resume::prepare_claude_for_home(&f.home, &f.configured, ID_A, &source).is_err());
+}
+
+#[test]
+fn customer_gg_changed_profile_rejects_stale_resume_metadata() {
+    let f = HomeFixture::new();
+    let p = customer_gg_profile(&f);
+    customer_gg_config(&f, &p);
+    let source = f.session(&p.join("projects"), ID_A);
+    customer_gg_wrapper(&f, cfg!(windows));
+    let old_roots = f.roots();
+    customer_gg_config(&f, &f.home.join("new-profile"));
+    assert!(resume::prepare_claude_for_home(&f.home, &f.configured, ID_A, &source).is_err());
+    assert!(resume::prepare_claude_with_roots(&f.home, ID_A, &source, &old_roots).is_err());
+}
+
+#[test]
+fn customer_gg_windows_preview_uses_cmd_and_powershell_quoting() {
+    let f = HomeFixture::new();
+    let p = customer_gg_profile(&f);
+    customer_gg_config(&f, &p);
+    let source = f.session(&p.join("projects"), ID_A);
+    let wrapper = customer_gg_wrapper(&f, true);
+    let command =
+        resume::claude_command_for_source(&f.home, ID_A, &source, &f.roots(), true).unwrap();
+    assert_eq!(command, resume::build_gg_command(&wrapper, ID_A, true));
+    assert!(command.contains("claude-gg.cmd"));
+    assert!(!command.contains("CLAUDE_CONFIG_DIR"));
+}
+
+#[cfg(unix)]
+#[test]
+fn customer_gg_actual_shell_executes_selected_entry_and_exact_uuid() {
+    let f = HomeFixture::new();
+    let p = customer_gg_profile(&f);
+    customer_gg_config(&f, &p);
+    let source = f.session(&p.join("projects"), ID_A);
+    customer_gg_wrapper(&f, false);
+    f.wrapper();
+    let auth = p.join(".credentials.json");
+    write_bytes(&auth, b"test-login-must-stay");
+    let before = fs::read(&auth).unwrap();
+    let prepared = resume::prepare_claude_for_home(&f.home, &f.configured, ID_A, &source).unwrap();
+    let result = std::process::Command::new("/bin/sh")
+        .arg("-c")
+        .arg(&prepared.command)
+        .current_dir(&f.cwd)
+        .output()
+        .unwrap();
+    assert!(result.status.success());
+    assert_eq!(
+        String::from_utf8(result.stdout).unwrap(),
+        format!("customer\n--resume\n{ID_A}\n")
+    );
+    assert_eq!(fs::read(&auth).unwrap(), before);
+}
+
+#[cfg(unix)]
+#[test]
+fn customer_gg_session_escape_stays_unrestorable() {
+    use std::os::unix::fs::symlink;
+    let f = HomeFixture::new();
+    let p = customer_gg_profile(&f);
+    customer_gg_config(&f, &p);
+    customer_gg_wrapper(&f, false);
+    let outside = f.session(&f.home.join("outside"), ID_A);
+    fs::create_dir_all(p.join("projects")).unwrap();
+    let alias = p.join("projects").join(format!("{ID_A}.jsonl"));
+    symlink(&outside, &alias).unwrap();
+    assert!(resume::prepare_claude_for_home(&f.home, &f.configured, ID_A, &alias).is_err());
 }

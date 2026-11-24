@@ -210,7 +210,17 @@ pub fn delete_session(
         return hermes::delete_session_sqlite(session_id, source_path);
     }
 
-    let roots = provider_roots(provider_id)?;
+    let roots = if provider_id == "claude" {
+        let roots = claude_roots::resolve();
+        let paths = claude_roots::paths(&roots);
+        let source = claude_roots::validate_source(Path::new(source_path), &paths)?;
+        if claude_roots::is_view_only_file(&source, &roots) {
+            return Err("此 Claude 记录目录仅供查看，无法在这里删除会话。".into());
+        }
+        paths
+    } else {
+        provider_roots(provider_id)?
+    };
     let deleted =
         delete_session_with_roots(provider_id, session_id, Path::new(source_path), &roots)?;
     if deleted {

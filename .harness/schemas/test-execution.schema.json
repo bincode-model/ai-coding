@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.codex/software-delivery-harness/1.0.0/test-execution.schema.json",
+  "title": "Software Delivery Harness test executions",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["standard_version", "run_id", "git_commit", "test_executions"],
+  "properties": {
+    "standard_version": {"const": "1.0.0"},
+    "run_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "git_commit": {"type": ["string", "null"], "maxLength": 128},
+    "test_executions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/execution"}
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128,
+      "pattern": "^[A-Z][A-Z0-9_.-]*$"
+    },
+    "text": {"type": "string", "minLength": 1, "maxLength": 8192},
+    "idList": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/id"},
+      "uniqueItems": true
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "os", "details"],
+      "properties": {
+        "name": {"$ref": "#/$defs/text"},
+        "os": {"$ref": "#/$defs/text"},
+        "details": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/text"}
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "execution_id", "test_case_id", "command", "cwd", "started_at",
+        "completed_at", "status", "exit_code", "tests_run", "tests_passed",
+        "tests_failed", "tests_skipped", "evidence_ids", "git_commit",
+        "environment", "runner", "failure_reason", "blocker", "notes"
+      ],
+      "properties": {
+        "execution_id": {"$ref": "#/$defs/id"},
+        "test_case_id": {"$ref": "#/$defs/id"},
+        "command": {"type": ["string", "null"], "maxLength": 8192},
+        "cwd": {"type": ["string", "null"], "maxLength": 2048},
+        "started_at": {"type": ["string", "null"], "format": "date-time"},
+        "completed_at": {"type": ["string", "null"], "format": "date-time"},
+        "status": {"enum": ["PASS", "FAIL", "BLOCKED", "NOT_RUN"]},
+        "exit_code": {"type": ["integer", "null"]},
+        "tests_run": {"type": "integer", "minimum": 0},
+        "tests_passed": {"type": "integer", "minimum": 0},
+        "tests_failed": {"type": "integer", "minimum": 0},
+        "tests_skipped": {"type": "integer", "minimum": 0},
+        "evidence_ids": {"$ref": "#/$defs/idList"},
+        "git_commit": {"type": ["string", "null"], "maxLength": 128},
+        "environment": {"$ref": "#/$defs/environment"},
+        "runner": {"$ref": "#/$defs/text"},
+        "failure_reason": {"type": ["string", "null"], "maxLength": 8192},
+        "blocker": {"type": ["string", "null"], "maxLength": 8192},
+        "notes": {"type": "string", "maxLength": 8192}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "PASS"}}, "required": ["status"]},
+          "then": {
+            "properties": {
+              "command": {"type": "string", "minLength": 1},
+              "started_at": {"type": "string", "format": "date-time"},
+              "completed_at": {"type": "string", "format": "date-time"},
+              "exit_code": {"const": 0},
+              "tests_run": {"minimum": 1},
+              "tests_failed": {"const": 0},
+              "tests_skipped": {"const": 0},
+              "evidence_ids": {"minItems": 1},
+              "failure_reason": {"type": "null"},
+              "blocker": {"type": "null"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"status": {"const": "FAIL"}}, "required": ["status"]},
+          "then": {
+            "properties": {
+              "tests_run": {"minimum": 1},
+              "tests_failed": {"minimum": 1},
+              "failure_reason": {"type": "string", "minLength": 1}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"status": {"const": "BLOCKED"}}, "required": ["status"]},
+          "then": {
+            "properties": {
+              "blocker": {"type": "string", "minLength": 1}
+            }
+          }
+        }
+      ]
+    }
+  }
+}

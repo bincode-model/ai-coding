@@ -1,0 +1,260 @@
+{
+  "concurrency": "exclusive_repo_lease",
+  "policy_name": "software-delivery-harness-subagent-roles",
+  "protected_acceptance_paths": [
+    ".codex/**",
+    ".harness/config.json",
+    ".harness/schemas/**",
+    ".harness/spec/requirements.json",
+    ".harness/spec/change-ledger.json",
+    ".harness/spec/test-cases.json",
+    ".harness/spec/traceability.json",
+    ".harness/spec/acceptance-results.json",
+    ".harness/state/requirements-baseline.json",
+    ".harness/state/subagent-guard/**",
+    "AGENTS.md",
+    "scripts/_harness_core.py",
+    "scripts/harness_authorize_subagent.py",
+    "scripts/harness_run_subagent.py",
+    "scripts/harness_init.py",
+    "scripts/harness_selftest.py",
+    "scripts/harness_validate.py",
+    "scripts/harness_verify.py"
+  ],
+  "roles": {
+    "architecture_auditor": {
+      "acceptance_changes": "forbidden",
+      "allow_paths": [],
+      "allowed_operations": [],
+      "deny_paths": [
+        "**"
+      ],
+      "mode": "read_only"
+    },
+    "backend_worker": {
+      "acceptance_changes": "explicit_external_grant_only",
+      "allow_paths": [
+        "**"
+      ],
+      "allowed_operations": [
+        "add",
+        "modify",
+        "delete"
+      ],
+      "deny_paths": [
+        ".codex/**",
+        ".harness/config.json",
+        ".harness/schemas/**",
+        ".harness/spec/requirements.json",
+        ".harness/spec/change-ledger.json",
+        ".harness/spec/test-cases.json",
+        ".harness/spec/traceability.json",
+        ".harness/spec/acceptance-results.json",
+        ".harness/state/requirements-baseline.json",
+        ".harness/state/subagent-guard/**",
+        "AGENTS.md",
+        "scripts/_harness_core.py",
+        "scripts/harness_authorize_subagent.py",
+        "scripts/harness_run_subagent.py",
+        "scripts/harness_init.py",
+        "scripts/harness_selftest.py",
+        "scripts/harness_validate.py",
+        "scripts/harness_verify.py"
+      ],
+      "mode": "write"
+    },
+    "database_worker": {
+      "acceptance_changes": "explicit_external_grant_only",
+      "allow_paths": [
+        "**"
+      ],
+      "allowed_operations": [
+        "add",
+        "modify",
+        "delete"
+      ],
+      "deny_paths": [
+        ".codex/**",
+        ".harness/config.json",
+        ".harness/schemas/**",
+        ".harness/spec/requirements.json",
+        ".harness/spec/change-ledger.json",
+        ".harness/spec/test-cases.json",
+        ".harness/spec/traceability.json",
+        ".harness/spec/acceptance-results.json",
+        ".harness/state/requirements-baseline.json",
+        ".harness/state/subagent-guard/**",
+        "AGENTS.md",
+        "scripts/_harness_core.py",
+        "scripts/harness_authorize_subagent.py",
+        "scripts/harness_run_subagent.py",
+        "scripts/harness_init.py",
+        "scripts/harness_selftest.py",
+        "scripts/harness_validate.py",
+        "scripts/harness_verify.py"
+      ],
+      "mode": "write"
+    },
+    "file_pipeline_worker": {
+      "acceptance_changes": "explicit_external_grant_only",
+      "allow_paths": [
+        "**"
+      ],
+      "allowed_operations": [
+        "add",
+        "modify",
+        "delete"
+      ],
+      "deny_paths": [
+        ".codex/**",
+        ".harness/config.json",
+        ".harness/schemas/**",
+        ".harness/spec/requirements.json",
+        ".harness/spec/change-ledger.json",
+        ".harness/spec/test-cases.json",
+        ".harness/spec/traceability.json",
+        ".harness/spec/acceptance-results.json",
+        ".harness/state/requirements-baseline.json",
+        ".harness/state/subagent-guard/**",
+        "AGENTS.md",
+        "scripts/_harness_core.py",
+        "scripts/harness_authorize_subagent.py",
+        "scripts/harness_run_subagent.py",
+        "scripts/harness_init.py",
+        "scripts/harness_selftest.py",
+        "scripts/harness_validate.py",
+        "scripts/harness_verify.py"
+      ],
+      "mode": "write"
+    },
+    "frontend_worker": {
+      "acceptance_changes": "explicit_external_grant_only",
+      "allow_paths": [
+        "**"
+      ],
+      "allowed_operations": [
+        "add",
+        "modify",
+        "delete"
+      ],
+      "deny_paths": [
+        ".codex/**",
+        ".harness/config.json",
+        ".harness/schemas/**",
+        ".harness/spec/requirements.json",
+        ".harness/spec/change-ledger.json",
+        ".harness/spec/test-cases.json",
+        ".harness/spec/traceability.json",
+        ".harness/spec/acceptance-results.json",
+        ".harness/state/requirements-baseline.json",
+        ".harness/state/subagent-guard/**",
+        "AGENTS.md",
+        "scripts/_harness_core.py",
+        "scripts/harness_authorize_subagent.py",
+        "scripts/harness_run_subagent.py",
+        "scripts/harness_init.py",
+        "scripts/harness_selftest.py",
+        "scripts/harness_validate.py",
+        "scripts/harness_verify.py"
+      ],
+      "mode": "write"
+    },
+    "release_judge": {
+      "acceptance_changes": "forbidden",
+      "allow_paths": [],
+      "allowed_operations": [],
+      "deny_paths": [
+        "**"
+      ],
+      "mode": "read_only"
+    },
+    "requirements_auditor": {
+      "acceptance_changes": "forbidden",
+      "allow_paths": [],
+      "allowed_operations": [],
+      "deny_paths": [
+        "**"
+      ],
+      "mode": "read_only"
+    },
+    "runtime_acceptance": {
+      "acceptance_changes": "forbidden",
+      "allow_paths": [
+        ".harness/runs/**"
+      ],
+      "allowed_operations": [
+        "add",
+        "modify"
+      ],
+      "deny_paths": [
+        ".codex/**",
+        ".harness/config.json",
+        ".harness/schemas/**",
+        ".harness/spec/requirements.json",
+        ".harness/spec/change-ledger.json",
+        ".harness/spec/test-cases.json",
+        ".harness/spec/traceability.json",
+        ".harness/spec/acceptance-results.json",
+        ".harness/state/requirements-baseline.json",
+        ".harness/state/subagent-guard/**",
+        "AGENTS.md",
+        "scripts/_harness_core.py",
+        "scripts/harness_authorize_subagent.py",
+        "scripts/harness_run_subagent.py",
+        "scripts/harness_init.py",
+        "scripts/harness_selftest.py",
+        "scripts/harness_validate.py",
+        "scripts/harness_verify.py"
+      ],
+      "mode": "evidence_only"
+    },
+    "security_reviewer": {
+      "acceptance_changes": "forbidden",
+      "allow_paths": [],
+      "allowed_operations": [],
+      "deny_paths": [
+        "**"
+      ],
+      "mode": "read_only"
+    },
+    "test_engineer": {
+      "acceptance_changes": "explicit_external_grant_only",
+      "allow_paths": [
+        "**"
+      ],
+      "allowed_operations": [
+        "add",
+        "modify",
+        "delete"
+      ],
+      "deny_paths": [
+        ".codex/**",
+        ".harness/config.json",
+        ".harness/schemas/**",
+        ".harness/spec/requirements.json",
+        ".harness/spec/change-ledger.json",
+        ".harness/spec/test-cases.json",
+        ".harness/spec/traceability.json",
+        ".harness/spec/acceptance-results.json",
+        ".harness/state/requirements-baseline.json",
+        ".harness/state/subagent-guard/**",
+        "AGENTS.md",
+        "scripts/_harness_core.py",
+        "scripts/harness_authorize_subagent.py",
+        "scripts/harness_run_subagent.py",
+        "scripts/harness_init.py",
+        "scripts/harness_selftest.py",
+        "scripts/harness_validate.py",
+        "scripts/harness_verify.py"
+      ],
+      "mode": "write"
+    }
+  },
+  "snapshot_limits": {
+    "max_file_bytes": 67108864,
+    "max_files": 50000,
+    "max_total_bytes": 536870912
+  },
+  "standard_version": "1.0.0",
+  "unknown_agent_type": "BLOCKED"
+}
