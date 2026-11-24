@@ -87,6 +87,9 @@ pub(crate) fn claude_command_for_source(
     uuid::Uuid::parse_str(session_id)
         .map_err(|_| "会话 ID 不是有效 UUID，已停止恢复；请刷新后重新选择".to_string())?;
     let source = claude_roots::validate_source(source, &claude_roots::paths(roots))?;
+    if claude_roots::is_view_only_file(&source, roots) {
+        return Err("此目录仅用于查看会话。如需继续，请在原来的终端入口恢复。".into());
+    }
     let root = roots
         .iter()
         .filter(|root| {
@@ -152,6 +155,7 @@ pub(crate) fn claude_command_for_source(
             }
             Ok(build_gg_command(&wrapper, session_id, windows))
         }
+        ClaudeSource::ViewOnly => Err("此目录仅用于查看会话。".into()),
         ClaudeSource::Archive => Err(
             "这是旧 Claude 历史归档，无法一键恢复到当前 Claude GG；完整记录仍可查看。不会复制历史或切换专线配置。".into(),
         ),

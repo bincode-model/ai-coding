@@ -16,6 +16,7 @@ pub(crate) enum ClaudeSource {
     Configured,
     Archive,
     CurrentGg,
+    ViewOnly,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -182,7 +183,75 @@ pub(crate) fn resolve_for_home(home: &Path, configured_dir: &Path) -> Vec<Claude
             roots.push(gg);
         }
     }
+    // The app's provider override is a write destination. It must not hide
+    // sessions that the native CLI wrote before the override was selected.
+    let native = home.join(".claude/projects");
+    if native.is_dir()
+        && !roots
+            .iter()
+            .any(|root| comparable_path(&root.path) == comparable_path(&native))
+    {
+        roots.push(ClaudeRoot {
+            path: native,
+            source: ClaudeSource::ViewOnly,
+        });
+    }
+    if let Some(path) = bwh_projects(home) {
+        // If the user pointed a provider override at line 2, its sessions are
+        // still view-only. Never inherit the override's ordinary Claude launcher.
+        let key = comparable_path(&path);
+        roots.retain(|root| comparable_path(&root.path) != key);
+        roots.push(ClaudeRoot {
+            path,
+            source: ClaudeSource::ViewOnly,
+        });
+    }
     roots
+}
+
+/// Both the historical "profile" and the per-customer "profile-<id>"
+/// layouts exist. Use the active install only, never enumerate sibling
+/// profiles, unfinished installs or backups from previous customers.
+fn bwh_projects(home: &Path) -> Option<PathBuf> {
+    let install = home.join(".claude-gg-bwh-client");
+    if !std::fs::symlink_metadata(&install).ok()?.is_dir() {
+        return None;
+    }
+    let config = install.join("config.private.json");
+    let profile = if marker_present(&config) {
+        read_gg_profile(&config)?
+    } else {
+        install.join("profile")
+    };
+    let name = profile.file_name()?.to_str()?;
+    let valid_name = name == "profile"
+        || name.strip_prefix("profile-").is_some_and(|id| {
+            id.len() == 32
+                && id
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        });
+    let canonical_install = install.canonicalize().ok()?;
+    if !valid_name || canonicalize_with_missing(profile.parent()?)? != canonical_install {
+        return None;
+    }
+    let projects = install.join(name).join("projects");
+    // The installer keeps both directories inside its own namespace. A
+    // symlink to another profile must not enroll that user's records.
+    (canonicalize_with_missing(&projects)? == canonical_install.join(name).join("projects"))
+        .then_some(projects)
+}
+
+/// Shared guard on all non-viewing actions, including overlapping roots.
+pub(crate) fn is_view_only_file(source: &Path, roots: &[ClaudeRoot]) -> bool {
+    roots
+        .iter()
+        .filter(|root| root.source == ClaudeSource::ViewOnly)
+        .any(|root| {
+            root.path
+                .canonicalize()
+                .is_ok_and(|path| source.starts_with(path))
+        })
 }
 
 fn latest_archive_projects(home: &Path) -> Option<PathBuf> {
@@ -257,7 +326,9 @@ pub(crate) fn gg_wrapper(home: &Path) -> PathBuf {
 }
 
 pub(crate) fn gg_installed(home: &Path) -> bool {
-    GgInstallation::Owner.installed(home) || GgInstallation::Client.installed(home)
+    GgInstallation::Owner.installed(home)
+        || GgInstallation::Client.installed(home)
+        || marker_present(&home.join(".claude-gg-bwh-client"))
 }
 
 pub(crate) fn is_ignored_directory(path: &Path) -> bool {

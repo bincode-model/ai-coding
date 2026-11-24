@@ -205,11 +205,11 @@ fn assert_rejected_source(source: &Path, roots: &[PathBuf]) {
 // REQ-CLAUDE-DUAL-ROOTS / TC-CLAUDE-DUAL-ROOTS
 
 #[test]
-fn configured_legacy_has_priority_and_excludes_other_archives_and_mirror() {
+fn native_and_configured_histories_exclude_other_archives_and_mirror() {
     let fixture = HomeFixture::new();
     let legacy = fixture.session(&fixture.legacy(), ID_A);
     let gg = fixture.session(&fixture.gg(), ID_A);
-    fixture.session(&fixture.home.join(".claude/projects"), ID_B);
+    let native = fixture.session(&fixture.home.join(".claude/projects"), ID_B);
     fixture.session(
         &fixture.archive("Claude-Code-archive-20261021-120000"),
         ID_B,
@@ -217,7 +217,7 @@ fn configured_legacy_has_priority_and_excludes_other_archives_and_mirror() {
     fixture.session(&fixture.mirror(), ID_C);
 
     let roots = fixture.roots();
-    assert_eq!(roots.len(), 2);
+    assert_eq!(roots.len(), 3);
     assert_eq!(
         roots[0],
         ClaudeRoot {
@@ -235,17 +235,19 @@ fn configured_legacy_has_priority_and_excludes_other_archives_and_mirror() {
     let sessions = claude::scan_sessions_with_roots(&fixture.home, &roots);
     assert_eq!(
         sessions.len(),
-        2,
+        3,
         "different files with the same UUID are distinct histories"
     );
-    assert!(sessions
-        .iter()
-        .all(|meta| meta.session_id == ID_A && meta.provider_id == "claude"));
+    assert!(sessions.iter().all(|meta| meta.provider_id == "claude"));
     assert_eq!(
         scanned_paths(&sessions),
-        BTreeSet::from([legacy.canonicalize().unwrap(), gg.canonicalize().unwrap()])
+        BTreeSet::from([
+            legacy.canonicalize().unwrap(),
+            gg.canonicalize().unwrap(),
+            native.canonicalize().unwrap()
+        ])
     );
-    for source in [&legacy, &gg] {
+    for source in [&legacy, &gg, &native] {
         assert_read_stat_unchanged(source, &claude_roots::paths(&roots));
     }
 }
@@ -350,6 +352,15 @@ fn public_read_stat_and_search_isolate_legacy_and_gg_histories() {
     let gg = home
         .join(".claude-gg-dmit-metered/profile/projects/synthetic-project")
         .join(format!("{ID_A}.jsonl"));
+    let bwh_install = home.join(".claude-gg-bwh-client");
+    let profile = bwh_install.join("profile-0123456789abcdef0123456789abcdef");
+    write_bytes(
+        &bwh_install.join("config.private.json"),
+        &serde_json::to_vec(&json!({"profile":profile})).unwrap(),
+    );
+    let bwh = profile
+        .join("projects/synthetic-project")
+        .join(format!("{ID_A}.jsonl"));
     let outside = home.join("outside-projects").join(format!("{ID_A}.jsonl"));
     let reply_line = |reply: &str| {
         format!(
@@ -366,6 +377,7 @@ fn public_read_stat_and_search_isolate_legacy_and_gg_histories() {
     };
     let legacy_bytes = make_source(&legacy, LEGACY_TEXT);
     let mut gg_bytes = make_source(&gg, GG_TEXT);
+    let bwh_bytes = make_source(&bwh, "second line unique reply");
     let outside_bytes = make_source(&outside, OUTSIDE_TEXT);
     let ignored_aliases = [
         legacy.parent().unwrap().join("agent-alias.jsonl"),
@@ -392,8 +404,10 @@ fn public_read_stat_and_search_isolate_legacy_and_gg_histories() {
     let sessions = claude::scan_sessions();
     let legacy_source = legacy.canonicalize().unwrap();
     let gg_source = gg.canonicalize().unwrap();
-    let expected_paths = BTreeSet::from([legacy_source.clone(), gg_source.clone()]);
-    assert_eq!(sessions.len(), 2);
+    let bwh_source = bwh.canonicalize().unwrap();
+    let expected_paths =
+        BTreeSet::from([legacy_source.clone(), gg_source.clone(), bwh_source.clone()]);
+    assert_eq!(sessions.len(), 3);
     assert!(sessions
         .iter()
         .all(|meta| meta.provider_id == "claude" && meta.session_id == ID_A));
@@ -450,6 +464,16 @@ fn public_read_stat_and_search_isolate_legacy_and_gg_histories() {
     };
     assert_public_read(&legacy_source, &[LEGACY_TEXT], &legacy_bytes);
     assert_public_read(&gg_source, &[GG_TEXT], &gg_bytes);
+    assert_public_read(&bwh_source, &["second line unique reply"], &bwh_bytes);
+    assert_hit(
+        "second line unique reply",
+        SessionSearchMode::Exact,
+        &bwh_source,
+        "second line unique reply",
+    );
+    assert!(super::delete_session("claude", ID_A, bwh.to_str().unwrap()).is_err());
+    assert!(resume::prepare("claude", ID_A, bwh.to_str().unwrap()).is_err());
+    assert_eq!(fs::read(&bwh).unwrap(), bwh_bytes);
     for (source, text, fuzzy) in [
         (&legacy_source, LEGACY_TEXT, LEGACY_FUZZY),
         (&gg_source, GG_TEXT, GG_FUZZY),
@@ -463,7 +487,7 @@ fn public_read_stat_and_search_isolate_legacy_and_gg_histories() {
         (SessionSearchMode::Fuzzy, "保留 原始 问题"),
     ] {
         let hits = search::search_contents(&items, query, 0, mode);
-        assert_eq!(hits.len(), 2, "same UUID must not merge source paths");
+        assert_eq!(hits.len(), 3, "same UUID must not merge source paths");
         assert_eq!(
             hits.iter()
                 .map(|hit| PathBuf::from(&hit.source_path))
@@ -1973,6 +1997,68 @@ fn customer_gg_discovery_reads_and_watches_original_history_without_mutation() {
     for (p, bytes) in [&old, &source, &config, &credential].iter().zip(before) {
         assert_eq!(fs::read(p).unwrap(), bytes);
     }
+}
+
+#[test]
+fn native_and_both_customer_lines_remain_visible_with_a_provider_override() {
+    let f = HomeFixture::new();
+    let line1 = customer_gg_profile(&f);
+    customer_gg_config(&f, &line1);
+    let line2 = f.home.join(".claude-gg-bwh-client/profile");
+    let native = f.home.join(".claude/projects");
+    let expected = [
+        f.session(&f.legacy(), ID_A),
+        f.session(&native, ID_A),
+        f.session(&line1.join("projects"), ID_A),
+        f.session(&line2.join("projects"), ID_A),
+    ];
+    let ignored = f
+        .home
+        .join(".claude-gg-bwh-client.preparing-incomplete/profile/projects");
+    f.session(&ignored, ID_B);
+    f.session(
+        &f.home
+            .join(".claude-gg-bwh-client/profile-deadbeefdeadbeefdeadbeefdeadbeef/projects"),
+        ID_C,
+    );
+    let roots = f.roots();
+    assert_eq!(
+        scanned_paths(&claude::scan_sessions_with_roots(&f.home, &roots)),
+        expected
+            .iter()
+            .map(|path| path.canonicalize().unwrap())
+            .collect()
+    );
+    let desired = f.desired();
+    for root in [&native, &line1.join("projects"), &line2.join("projects")] {
+        assert!(desired.contains(&("claude".to_string(), root.clone())));
+    }
+    for source in expected {
+        assert_read_stat_unchanged(&source, &claude_roots::paths(&roots));
+    }
+}
+
+#[test]
+fn line_two_never_routes_a_native_or_overridden_session_to_plain_claude() {
+    let f = HomeFixture::new();
+    let install = f.home.join(".claude-gg-bwh-client");
+    let profile = install.join("profile");
+    let source = f.session(&profile.join("projects"), ID_A);
+    let native = f.session(&f.home.join(".claude/projects"), ID_A);
+    for configured in [&profile, &f.home.join(".claude")] {
+        assert!(resume::prepare_claude_for_home(&f.home, configured, ID_A, &source).is_err());
+        assert!(resume::prepare_claude_for_home(&f.home, configured, ID_A, &native).is_err());
+    }
+    // A partially repaired or moved installation does not grant access to a
+    // path outside the original directory. Its config is never changed.
+    let outside = f.home.join("different account/profile");
+    let foreign = f.session(&outside.join("projects"), ID_B);
+    let config = install.join("config.private.json");
+    let bytes = serde_json::to_vec(&json!({"profile":outside})).unwrap();
+    write_bytes(&config, &bytes);
+    let paths = scanned_paths(&claude::scan_sessions_with_roots(&f.home, &f.roots()));
+    assert!(!paths.contains(&foreign.canonicalize().unwrap()));
+    assert_eq!(fs::read(config).unwrap(), bytes);
 }
 
 #[test]
