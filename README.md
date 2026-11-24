@@ -13,6 +13,8 @@ AI Coding is not another chat wrapper. It is a practical desktop toolkit for dev
 
 If you often switch between DeepSeek, Kimi, Zhipu GLM, Qwen/Bailian, SiliconFlow, ModelScope, Claude, Gemini, OpenAI-compatible APIs, AWS Bedrock, or custom gateways, AI Coding is designed to make that workflow faster and less fragile.
 
+**Claude Code, `claude-g` and `claude-gg` session history** · [Download the 3.22.8 prerelease](https://github.com/bincode-model/ai-coding/releases/tag/v3.22.8). [Tagged source](https://github.com/bincode-model/ai-coding/tree/v3.22.8).
+
 ## Screenshots
 
 > All screenshots below are from the current AI Coding app.
@@ -73,26 +75,17 @@ This repository is prepared as an open-source build for self-hosting, learning, 
 
 ## Download
 
+To view local history from Claude Code, `claude-g`, or `claude-gg`, use **3.22.8** and open **Sessions → Claude**. [Download the session history prerelease](https://github.com/bincode-model/ai-coding/releases/tag/v3.22.8).
+
 ### macOS
 
-Download the current Apple Silicon build:
+Apple Silicon prerelease
 
-[Download AI Coding v3.22.5 for macOS Apple Silicon](https://github.com/bincode-model/ai-coding/releases/download/v3.22.5/AI-Coding-v3.22.5-macOS-aarch64.dmg)
+[Download AI Coding v3.22.8 for macOS Apple Silicon](https://github.com/bincode-model/ai-coding/releases/download/v3.22.8/AI-Coding-v3.22.8-macOS-aarch64.dmg)
 
 Open the `.dmg` file, then drag **AI Coding** into the Applications folder.
 
-#### macOS says the app "is damaged" or won't open
-
-The app is not notarized with Apple yet, so Gatekeeper may block the first launch after download. The file itself is fine. Fix it either way below:
-
-- Open **System Settings → Privacy & Security**, scroll down to the AI Coding message, and click **Open Anyway**; or
-- Run this once in Terminal after copying the app into Applications, then open it normally:
-
-```bash
-xattr -cr "/Applications/AI Coding.app"
-```
-
-> All installers and SHA-256 checksums are available on the [v3.22.5 release page](https://github.com/bincode-model/ai-coding/releases/tag/v3.22.5). The repository also keeps the Mac `.dmg` under `downloads/`.
+This build is not notarized by Apple. Verify the downloaded DMG against `SHA256SUMS.txt` on the release page. The `downloads/` directory contains older builds.
 
 The macOS build output is usually located at:
 
@@ -103,12 +96,12 @@ src-tauri/target/release/bundle/dmg/
 
 ### Windows (64-bit)
 
-- [Download EXE installer](https://github.com/bincode-model/ai-coding/releases/download/v3.22.5/AI-Coding-v3.22.5-windows-x64-setup.exe) — recommended for normal installation.
-- [Download MSI installer](https://github.com/bincode-model/ai-coding/releases/download/v3.22.5/AI-Coding-v3.22.5-windows-x64.msi) — alternative Windows Installer package.
+- [Download EXE installer](https://github.com/bincode-model/ai-coding/releases/download/v3.22.8/AI-Coding-v3.22.8-windows-x64-setup.exe) — recommended for normal installation.
+- [Download MSI installer](https://github.com/bincode-model/ai-coding/releases/download/v3.22.8/AI-Coding-v3.22.8-windows-x64.msi) — alternative Windows Installer package.
 
 Use either installer on Windows 10/11 x64. Both install for the current user. The EXE installer offers Simplified Chinese and English. Microsoft Edge WebView2 is required; the installer includes its bootstrapper and may need an Internet connection if the runtime is missing.
 
-These installers do not have a commercial code-signing certificate, so Windows may show an unknown-publisher or SmartScreen prompt. Download from this repository's release page and compare the file with `WINDOWS-SHA256SUMS` when needed.
+These installers do not have a commercial code-signing certificate, so Windows may show an unknown-publisher or SmartScreen prompt. Download from this repository's release page and compare the file with `SHA256SUMS.txt` when needed.
 
 Session search supports exact and fuzzy matching on Windows too. To resume a session, copy its resume command and run it in your terminal with the corresponding CLI installed.
 

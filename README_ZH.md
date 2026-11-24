@@ -11,6 +11,8 @@
 
 AI Coding 不是普通聊天壳，而是给 AI 编程用户准备的桌面控制台：把供应商、模型、API Key、代理路由、MCP、Skills、提示词、会话记录、记忆同步和用量统计放到一个地方管理。它适合经常在国产模型和国外模型之间切换，也适合同时使用多个 AI 编程工具的开发者。
 
+**原生 Claude、`claude-g`、`claude-gg` 历史记录** · [下载 3.22.8 预发布版](https://github.com/bincode-model/ai-coding/releases/tag/v3.22.8)。 [查看该安装包对应的源码](https://github.com/bincode-model/ai-coding/tree/v3.22.8)。
+
 ## 界面预览
 
 > 以下截图均来自当前 AI Coding 版本，不使用第三方示例图。
@@ -74,29 +76,22 @@ AI Coding 不是普通聊天壳，而是给 AI 编程用户准备的桌面控制
 
 ## 下载安装
 
+查看原生 Claude、`claude-g` 或 `claude-gg` 的本地记录，请使用 **3.22.8**。打开底部「会话管理」，选择 Claude 即可查看。[下载会话读取修复版（预发布）](https://github.com/bincode-model/ai-coding/releases/tag/v3.22.8)。
+
 ### macOS（Apple Silicon）
 
-[下载 AI Coding v3.22.5 macOS 安装包](https://github.com/bincode-model/ai-coding/releases/download/v3.22.5/AI-Coding-v3.22.5-macOS-aarch64.dmg)
+[下载 AI Coding v3.22.8 macOS 安装包](https://github.com/bincode-model/ai-coding/releases/download/v3.22.8/AI-Coding-v3.22.8-macOS-aarch64.dmg)
 
 打开 `.dmg` 文件，把 **AI Coding** 拖进「应用程序」文件夹即可。
 
-#### 提示"已损坏，无法打开"怎么办
-
-应用暂未经过 Apple 公证，首次打开可能被 macOS 拦截，提示"已损坏"或"无法验证开发者"。**文件本身没有问题**，按下面任一方式处理即可：
-
-- 打开「系统设置 → 隐私与安全性」，往下滚动找到 AI Coding 的提示，点「仍要打开」；或
-- 把应用拖进「应用程序」后，在终端执行一次下面的命令，然后正常打开：
-
-```bash
-xattr -cr "/Applications/AI Coding.app"
-```
+此 macOS 包尚未经过 Apple 公证。请在发布页下载 `SHA256SUMS.txt`，核对 DMG 的 SHA-256。仓库 `downloads/` 目录保留的是旧包。
 
 ### Windows（64 位）
 
-- [下载 EXE 安装包](https://github.com/bincode-model/ai-coding/releases/download/v3.22.5/AI-Coding-v3.22.5-windows-x64-setup.exe)：日常安装推荐。
-- [下载 MSI 安装包](https://github.com/bincode-model/ai-coding/releases/download/v3.22.5/AI-Coding-v3.22.5-windows-x64.msi)：Windows Installer 格式。
+- [下载 EXE 安装包](https://github.com/bincode-model/ai-coding/releases/download/v3.22.8/AI-Coding-v3.22.8-windows-x64-setup.exe)：日常安装推荐。
+- [下载 MSI 安装包](https://github.com/bincode-model/ai-coding/releases/download/v3.22.8/AI-Coding-v3.22.8-windows-x64.msi)：Windows Installer 格式。
 
-适用于 Windows 10/11 x64。应用需要 Microsoft Edge WebView2；安装包包含引导程序，缺少运行环境时可能联网下载。安装包未使用商业代码签名证书，系统可能显示“未知发布者”或 SmartScreen 提示。安装包和 SHA-256 校验文件见 [v3.22.5 发布页](https://github.com/bincode-model/ai-coding/releases/tag/v3.22.5)。Windows 上恢复会话会给出对应 CLI 的命令，需要在终端执行。
+适用于 Windows 10/11 x64。应用需要 Microsoft Edge WebView2；安装包包含引导程序，缺少运行环境时可能联网下载。安装包未使用商业代码签名证书，系统可能显示“未知发布者”或 SmartScreen 提示。安装包和 SHA-256 校验文件见 [v3.22.8 发布页](https://github.com/bincode-model/ai-coding/releases/tag/v3.22.8)。Windows 上恢复会话会给出对应 CLI 的命令，需要在终端执行。
 
 ## 本地开发
 
