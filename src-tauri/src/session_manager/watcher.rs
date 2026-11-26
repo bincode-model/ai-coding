@@ -62,7 +62,11 @@ struct DirectoryIdentity {
     device: u64,
     #[cfg(unix)]
     inode: u64,
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    volume: u32,
+    #[cfg(windows)]
+    file_index: u64,
+    #[cfg(not(any(unix, windows)))]
     created: Option<std::time::SystemTime>,
 }
 
@@ -79,7 +83,30 @@ fn directory_identity(path: &Path) -> Option<DirectoryIdentity> {
             inode: metadata.ino(),
         })
     }
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    {
+        use std::os::windows::{fs::OpenOptionsExt, io::AsRawHandle};
+        use windows_sys::Win32::Storage::FileSystem::{
+            GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION, FILE_FLAG_BACKUP_SEMANTICS,
+            FILE_READ_ATTRIBUTES,
+        };
+
+        let directory = std::fs::OpenOptions::new()
+            .access_mode(FILE_READ_ATTRIBUTES)
+            .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+            .open(path)
+            .ok()?;
+        let mut info = BY_HANDLE_FILE_INFORMATION::default();
+        // Keep the owned directory handle alive until the call returns.
+        if unsafe { GetFileInformationByHandle(directory.as_raw_handle(), &mut info) } == 0 {
+            return None;
+        }
+        Some(DirectoryIdentity {
+            volume: info.dwVolumeSerialNumber,
+            file_index: (u64::from(info.nFileIndexHigh) << 32) | u64::from(info.nFileIndexLow),
+        })
+    }
+    #[cfg(not(any(unix, windows)))]
     {
         Some(DirectoryIdentity {
             created: metadata.created().ok(),
